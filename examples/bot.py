@@ -60,10 +60,8 @@ def create_post(type: str):
     return data
 
 def submit_post(url: str, data: dict):
-    """
-    Submit a POST request to the given URL with the given data.
-    """
     return requests.post(url, data=json.dumps(data))
+
 
 def save_encoded_image(b64_image: str, output_path: str):
     """
@@ -111,13 +109,20 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 def get_size() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('w', callback_data='w'),
-         InlineKeyboardButton('h', callback_data='h')],[
+         InlineKeyboardButton('h', callback_data='h'),
+         InlineKeyboardButton('256*256',  callback_data='size|256_256'),
+         ],[
+         InlineKeyboardButton('512*512',  callback_data='size|512_512'),
+         InlineKeyboardButton('512*768',  callback_data='size|512_768'),
+         InlineKeyboardButton('512*1024', callback_data='size|512_1024')
+         ],[
          InlineKeyboardButton('768*512',  callback_data='size|768_512'),
          InlineKeyboardButton('768*768',  callback_data='size|768_768'),
-         InlineKeyboardButton('512*768',  callback_data='size|512_768'),
-         InlineKeyboardButton('512*1024', callback_data='size|512_1024')],[
-         InlineKeyboardButton('1024*768', callback_data='size|1024_768'),
          InlineKeyboardButton('768*1024', callback_data='size|768_1024')
+         ],[
+         InlineKeyboardButton('1024*512', callback_data='size|1024_512'),
+         InlineKeyboardButton('1024*768', callback_data='size|1024_768'),
+         InlineKeyboardButton('1024*1024', callback_data='size|1024_1024')
          ]
     ])
     return ikb
