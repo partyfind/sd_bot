@@ -201,34 +201,13 @@ def get_steps() -> InlineKeyboardMarkup:
     ])
     return ikb
 
-
+# получить список моделей и вывести его клавиатурой
 def get_models() -> InlineKeyboardMarkup:
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    #response.json()
-    #print(response.json())
-    print(3333333333333333333)
-    #json.loads(response.json()) model_name
     arr = [[]]
     for item in response.json():
-        #inline_keyboard.append([InlineKeyboardButton(item['model_name'],  callback_data=item['model_name'])])
-        #['inline_keyboard'].append([InlineKeyboardButton(item['model_name'],  callback_data=item['model_name'])])
-        arr.append([InlineKeyboardButton(item['model_name'], callback_data=item['model_name'])])
-        #print(item['title'])
-    #InlineKeyboardMarkup.row(*(InlineKeyboardButton(response.json(text)) for text in response.json()))
-    """
-    ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('20',  callback_data='steps|20'),
-         InlineKeyboardButton('30',  callback_data='steps|30'),
-         InlineKeyboardButton('40',  callback_data='steps|40'),
-         InlineKeyboardButton('50',  callback_data='steps|50')],[
-         InlineKeyboardButton('60',  callback_data='steps|60'),
-         InlineKeyboardButton('80',  callback_data='steps|80'),
-         InlineKeyboardButton('100', callback_data='steps|100')
-         ]
-    ])
-    """
-    print(arr)
-    ikb = InlineKeyboardMarkup(inline_keyboard=arr) #InlineKeyboardMarkup(inline_keyboard)
+        arr.append([InlineKeyboardButton(item['model_name'], callback_data='model|'+item['model_name'])])
+    ikb = InlineKeyboardMarkup(inline_keyboard=arr)
     return ikb
 
 @dp.callback_query_handler(text='option')
@@ -249,22 +228,25 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
-    #data = create_post('last')
-    #with open('dog.png', 'rb') as photo:
-    #    await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
     await callback.message.edit_text('models', reply_markup=get_models())
 
 
 
 
-
-@dp.callback_query_handler(text_startswith="models")
+# тыкнули на модельку
+@dp.callback_query_handler(text_startswith="model")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
-    #cur.execute("UPDATE prompts set scale = %s where user_id = %s", (s, callback.from_user.id))
-    #con.commit()
-    #await callback.message.edit_text('steps', reply_markup=get_steps())
-
+    print(s)
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    #for item in response.json():
+    result = [x['title'] for x in response.json() if x["model_name"]==s]
+    print(result)
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (result, callback.from_user.id))
+    con.commit()
+    data = create_post('last')
+    with open('dog.png', 'rb') as photo:
+        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
 
 @dp.callback_query_handler(text_startswith="size")
