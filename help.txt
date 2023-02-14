@@ -1,0 +1,39 @@
+5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw
+
+# вывести текст reply_text="" и удалить клаву
+await message.reply(reply_text, reply_markup=types.ReplyKeyboardRemove())
+
+# пришла команда после слеша
+@dp.message_handler(commands='start')
+
+# пришёл любой текст
+@dp.message_handler()
+async def all_msg_handler(message: types.Message):
+
+# Условия чтения текста и ответ
+button_text = message.text
+
+if button_text == 'Yes!':
+	reply_text = "That's great"
+elif button_text == 'No!':
+	reply_text = "Oh no! Why?"
+else:
+	reply_text = button_text
+
+
+# запись в БД
+cur = con.cursor()
+cur.execute(
+  "INSERT INTO prompts (user_id,prompt,steps,scale,width,height,model,negative) VALUES ('125011869', 'cat in boat, rainbow', '10', '9', '256', '512', 'deliberate_v11.ckpt [10a699c0f3]', 'red color')"
+)
+con.commit()
+
+# выборка
+cur.execute("SELECT user_id,prompt from prompts")
+rows = cur.fetchall()
+for row in rows:
+   print("user_id =", row[0])
+   print("prompt =", row[1])
+
+# Редактирование
+# cur.execute("UPDATE prompts set prompt = 'car' where user_id = '125011869'")
