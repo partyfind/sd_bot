@@ -68,3 +68,43 @@ negative generate
 
 negative
 enter /negative
+
+
+
+@dp.message_handler(commands=["ddd"])
+async def cmd_start(message: types.Message):
+    change_opt = {'sd_model_checkpoint':'Inkpunk-Diffusion-v2.ckpt [2182245415]'}
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', change_opt)
+    data = {
+        'prompt': 'Festival, carnival, beautiful scary girls, cyborgs, hyper detailed, very dark lighting, heavy shadows, hyper detailed, vibrant, photo realistic, realistic, dramatic, dark, sharp focus, 8k',
+        'steps':  30,
+        'width':  512,
+        'height': 512,
+        'cfg_scale': 12,
+        'negative_prompt': ' (bad art), (text title), blurry, frame, Images cut out at the top, left, right, bottom, repetitive, double, lowres, bad anatomy hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, (((uncanny face))), (((ugly face))), ((asymmetrical facial features)), (((wrong anatomy))), (((wrong arms))), (((wrong legs))), ((fused arms)), ((fused legs)), (wrong joints angle), wrong fingers, fused fingers, cross-eyed'
+    }
+    response = submit_post('http://127.0.0.1:7861/sdapi/v1/txt2img', data)
+    save_encoded_image(response.json()['images'][0], 'dog.png')
+    #print(response.json())
+    with open('dog.png', 'rb') as photo:
+        await message.reply_photo(photo, caption='Inkpunk')
+
+
+
+@dp.message_handler(commands=["aaa"])
+async def cmd_start(message: types.Message):
+    change_opt = {'sd_model_checkpoint':'anything-v4.5.ckpt [fbcf965a62]'}
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', change_opt)
+    data = {
+        'prompt': 'Festival, carnival, beautiful scary girls, cyborgs, hyper detailed, very dark lighting, heavy shadows, hyper detailed, vibrant, photo realistic, realistic, dramatic, dark, sharp focus, 8k',
+        'steps':  30,
+        'width':  512,
+        'height': 512,
+        'cfg_scale': 12,
+        'negative_prompt': ' (bad art), (text title), blurry, frame, Images cut out at the top, left, right, bottom, repetitive, double, lowres, bad anatomy hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, (((uncanny face))), (((ugly face))), ((asymmetrical facial features)), (((wrong anatomy))), (((wrong arms))), (((wrong legs))), ((fused arms)), ((fused legs)), (wrong joints angle), wrong fingers, fused fingers, cross-eyed'
+    }
+    response = submit_post('http://127.0.0.1:7861/sdapi/v1/txt2img', data)
+    save_encoded_image(response.json()['images'][0], 'dog.png')
+    #print(response.json())
+    with open('dog.png', 'rb') as photo:
+        await message.reply_photo(photo, caption='anything')

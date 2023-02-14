@@ -43,16 +43,33 @@ def create_post(type: str):
             width = row[2]
             height = row[3]
             cfg_scale = row[4]
+        prompt = row[0]
+        if row[5].find('Inkpunk') != -1:
+            prompt = 'nvinkpunk '+prompt
+        elif row[5].find('redshift') != -1:
+            prompt = 'redshift style '+prompt
+        elif row[5].find('comic-diffusion') != -1:
+            prompt = 'charliebo artstyle '+prompt
+        elif row[5].find('robo-diffusion') != -1:
+            prompt = 'nousr robot '+prompt
+        elif row[5].find('openjourneyAka_v1') != -1:
+            prompt = 'mdjrny-v4 style '+prompt
+        elif row[5].find('ghibli') != -1:
+            prompt = 'ghibli style '+prompt
+        elif row[5].find('future') != -1:
+            prompt = 'future style '+prompt
+        elif row[5].find('anime-pencil') != -1:
+            prompt = 'anime pencil concept style '+prompt
+        #prompt = '```'+prompt+'```'
         data = {
-            'prompt': row[0],
+            'prompt': prompt,
             'steps':  steps,
             'width':  width,
             'height': height,
             'cfg_scale': cfg_scale,
-            'sd_model_checkpoint':row[5],
+            'model':row[5],
             'negative_prompt': row[6]
         }
-        prompt = row[0]
     #con.close()
     response = submit_post(txt2img_url, data)
     save_encoded_image(response.json()['images'][0], 'dog.png')
@@ -88,55 +105,11 @@ async def cmd_start(message: types.Message) -> None:
     await message.reply('Введи текст', reply_markup=types.ReplyKeyboardRemove())
 
 
-
-@dp.message_handler(commands=["ddd"])
-async def cmd_start(message: types.Message):
-    change_opt = {'sd_model_checkpoint':'Inkpunk-Diffusion-v2.ckpt [2182245415]'}
-    submit_post('http://127.0.0.1:7861/sdapi/v1/options', change_opt)
-    data = {
-        'prompt': 'Festival, carnival, beautiful scary girls, cyborgs, hyper detailed, very dark lighting, heavy shadows, hyper detailed, vibrant, photo realistic, realistic, dramatic, dark, sharp focus, 8k',
-        'steps':  30,
-        'width':  512,
-        'height': 512,
-        'cfg_scale': 12,
-        'negative_prompt': ' (bad art), (text title), blurry, frame, Images cut out at the top, left, right, bottom, repetitive, double, lowres, bad anatomy hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, (((uncanny face))), (((ugly face))), ((asymmetrical facial features)), (((wrong anatomy))), (((wrong arms))), (((wrong legs))), ((fused arms)), ((fused legs)), (wrong joints angle), wrong fingers, fused fingers, cross-eyed'
-    }
-    response = submit_post('http://127.0.0.1:7861/sdapi/v1/txt2img', data)
-    save_encoded_image(response.json()['images'][0], 'dog.png')
-    #print(response.json())
-    with open('dog.png', 'rb') as photo:
-        await message.reply_photo(photo, caption='Inkpunk')
-
-
-
-@dp.message_handler(commands=["aaa"])
-async def cmd_start(message: types.Message):
-    change_opt = {'sd_model_checkpoint':'anything-v4.5.ckpt [fbcf965a62]'}
-    submit_post('http://127.0.0.1:7861/sdapi/v1/options', change_opt)
-    data = {
-        'prompt': 'Festival, carnival, beautiful scary girls, cyborgs, hyper detailed, very dark lighting, heavy shadows, hyper detailed, vibrant, photo realistic, realistic, dramatic, dark, sharp focus, 8k',
-        'steps':  30,
-        'width':  512,
-        'height': 512,
-        'cfg_scale': 12,
-        'negative_prompt': ' (bad art), (text title), blurry, frame, Images cut out at the top, left, right, bottom, repetitive, double, lowres, bad anatomy hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, (((uncanny face))), (((ugly face))), ((asymmetrical facial features)), (((wrong anatomy))), (((wrong arms))), (((wrong legs))), ((fused arms)), ((fused legs)), (wrong joints angle), wrong fingers, fused fingers, cross-eyed'
-    }
-    response = submit_post('http://127.0.0.1:7861/sdapi/v1/txt2img', data)
-    save_encoded_image(response.json()['images'][0], 'dog.png')
-    #print(response.json())
-    with open('dog.png', 'rb') as photo:
-        await message.reply_photo(photo, caption='anything')
-
-
-
-
-
-
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('min')
     with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove(), parse_mode='Markdown')
 
 
 @dp.callback_query_handler(text='max')
@@ -229,8 +202,6 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
     await callback.message.edit_text('models', reply_markup=get_models())
-
-
 
 
 # тыкнули на модельку

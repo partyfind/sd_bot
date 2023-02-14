@@ -1,0 +1,1 @@
+print('fu fu fun-21'.find('fun-22'))
