@@ -25,7 +25,7 @@ dp = Dispatcher(bot)
 
 def create_post(type: str):
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
-    cur.execute("SELECT prompt, steps, width, height, scale, model, negative from prompts")
+    cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
     rows = cur.fetchall()
     for row in rows:
         if type == 'min':
@@ -68,7 +68,8 @@ def create_post(type: str):
             'height': height,
             'cfg_scale': cfg_scale,
             'model':row[5],
-            'negative_prompt': row[6]
+            'negative_prompt': row[6],
+            'sampler_index': row[7]
         }
         data2 = {
             #'prompt': prompt,
@@ -77,7 +78,8 @@ def create_post(type: str):
             'height': height,
             'cfg_scale': cfg_scale,
             'model':row[5],
-            'negative_prompt': row[6]
+            'negative_prompt': row[6],
+            'sampler_index': row[7]
         }
     #con.close()
     #print(len(data))
