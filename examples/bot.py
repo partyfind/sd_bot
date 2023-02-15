@@ -186,6 +186,10 @@ def get_steps() -> InlineKeyboardMarkup:
 
 # получить список моделей и вывести его клавиатурой
 def get_models() -> InlineKeyboardMarkup:
+    #response2 = submit_post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     arr = [[]]
     for item in response.json():
