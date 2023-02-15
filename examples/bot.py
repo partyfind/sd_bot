@@ -194,7 +194,6 @@ def get_steps() -> InlineKeyboardMarkup:
 
 # получить список моделей и вывести его клавиатурой
 def get_models() -> InlineKeyboardMarkup:
-    #response2 = submit_post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
@@ -240,12 +239,14 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text_startswith="model")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
-    #print(s)
+    print(s)
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     #for item in response.json():
     result = [x['title'] for x in response.json() if x["model_name"]==s]
-    #print(result)
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (result, callback.from_user.id))
+    print(result[0])
+    # меняем модель в памяти
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
     con.commit()
     await callback.message.edit_text('samplers', reply_markup=get_samplers())
 
