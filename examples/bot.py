@@ -205,6 +205,16 @@ def get_models() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=arr)
     return ikb
 
+# получить список семплеров и вывести его клавиатурой
+def get_samplers() -> InlineKeyboardMarkup:
+    # вытянуть семплеры
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+    arr = [[]]
+    for item in response.json():
+        arr.append([InlineKeyboardButton(item['name'], callback_data='sampler|'+item['name'])])
+    ikb = InlineKeyboardMarkup(inline_keyboard=arr)
+    return ikb
+
 @dp.callback_query_handler(text='option')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('size', reply_markup=get_size())
@@ -230,17 +240,24 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text_startswith="model")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
-    print(s)
+    #print(s)
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     #for item in response.json():
     result = [x['title'] for x in response.json() if x["model_name"]==s]
-    print(result)
+    #print(result)
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (result, callback.from_user.id))
+    con.commit()
+    await callback.message.edit_text('samplers', reply_markup=get_samplers())
+
+
+@dp.callback_query_handler(text_startswith="sampler")
+async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    s = callback.data.split("|")[1]
+    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
     data = create_post('last')
     with open('dog.png', 'rb') as photo:
         await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
-
 
 @dp.callback_query_handler(text_startswith="size")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
