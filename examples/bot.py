@@ -129,7 +129,7 @@ async def send_welcome(message: types.Message):
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('min')
     with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove(), parse_mode='Markdown')
+        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
 
 @dp.callback_query_handler(text='max')
@@ -241,11 +241,11 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text_startswith="model")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
-    print(s)
+    #print(s)
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     #for item in response.json():
     result = [x['title'] for x in response.json() if x["model_name"]==s]
-    print(result[0])
+    #print(result[0])
     # меняем модель в памяти
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
