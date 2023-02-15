@@ -70,11 +70,21 @@ def create_post(type: str):
             'model':row[5],
             'negative_prompt': row[6]
         }
+        data2 = {
+            #'prompt': prompt,
+            'steps':  steps,
+            'width':  width,
+            'height': height,
+            'cfg_scale': cfg_scale,
+            'model':row[5],
+            'negative_prompt': row[6]
+        }
     #con.close()
+    #print(len(data))
     response = submit_post(txt2img_url, data)
     save_encoded_image(response.json()['images'][0], 'dog.png')
     print('dog save')
-    return data
+    return data2
 
 def submit_post(url: str, data: dict):
     return requests.post(url, data=json.dumps(data))
