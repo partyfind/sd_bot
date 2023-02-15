@@ -114,6 +114,14 @@ def get_ikb() -> InlineKeyboardMarkup:
 async def cmd_start(message: types.Message) -> None:
     await message.reply('Введи текст', reply_markup=types.ReplyKeyboardRemove())
 
+@dp.message_handler(commands=['negative'])
+async def send_welcome(message: types.Message):
+    button_text = message.text
+    print(button_text)
+    cur.execute("UPDATE prompts set negative = %s where user_id = %s", (button_text.replace('/negative ', ''), message.from_user.id))
+    con.commit()
+    await message.reply("Негатив записан")
+
 
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
