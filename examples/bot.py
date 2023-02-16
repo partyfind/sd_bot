@@ -24,6 +24,7 @@ bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
 
 def create_post(type: str):
+    print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
     rows = cur.fetchall()
@@ -124,7 +125,7 @@ async def cmd_start(message: types.Message) -> None:
 @dp.message_handler(commands=['negative'])
 async def send_welcome(message: types.Message):
     button_text = message.text
-    print(button_text)
+    print('negative')
     cur.execute("UPDATE prompts set negative = %s where user_id = %s", (button_text.replace('/negative ', ''), message.from_user.id))
     con.commit()
     await message.reply("Негатив записан")
@@ -134,21 +135,31 @@ async def send_welcome(message: types.Message):
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('min')
     with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await callback.message.delete()
+        await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+
 
 
 @dp.callback_query_handler(text='max')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('max')
     with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await callback.message.delete()
+        await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
 
 @dp.callback_query_handler(text='gen')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    print('gen')
+    print(callback.message.message_id)
     data = create_post('gen')
     with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await callback.message.delete()
+        await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+
 
 
 def get_size() -> InlineKeyboardMarkup:
@@ -203,23 +214,26 @@ def get_steps() -> InlineKeyboardMarkup:
 
 # получить список моделей и вывести его клавиатурой
 def get_models() -> InlineKeyboardMarkup:
+    print('get_models')
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     arr = [[]]
     for item in response.json():
-        arr.append([InlineKeyboardButton(item['model_name'], callback_data='model|'+item['model_name'])])
+        arr.append([InlineKeyboardButton(item['model_name'], callback_data='models|'+item['model_name'])])
+    arr.append([InlineKeyboardButton('gen', callback_data='gen')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr)
     return ikb
 
 # получить список семплеров и вывести его клавиатурой
 def get_samplers() -> InlineKeyboardMarkup:
+    print('get_samplers')
     # вытянуть семплеры
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
     arr = [[]]
     for item in response.json():
-        arr.append([InlineKeyboardButton(item['name'], callback_data='sampler|'+item['name'])])
+        arr.append([InlineKeyboardButton(item['name'], callback_data='samplers|'+item['name'])])
     arr.append([InlineKeyboardButton('gen', callback_data='gen')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr)
     return ikb
@@ -229,60 +243,85 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('size', reply_markup=get_size())
 
 
-@dp.callback_query_handler(text_startswith="scale") #text_startswith="scale" or
+@dp.callback_query_handler(text_startswith="scale")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    print(callback.data)
+    print('scale')
     if callback.data != 'scale':
         s = callback.data.split("|")[1]
         cur.execute("UPDATE prompts set scale = %s where user_id = %s", (s, callback.from_user.id))
         con.commit()
-    await callback.message.edit_text('steps', reply_markup=get_steps())
+        call = get_steps()
+    else:
+        call = get_scale()
+    await callback.message.edit_text('steps', reply_markup=call)
 
 
 @dp.callback_query_handler(text_startswith="steps")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('steps')
-    print(callback.data)
-    s = callback.data.split("|")[1]
-    cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
-    con.commit()
-    await callback.message.edit_text('samplers', reply_markup=get_samplers())
+    if callback.data != 'steps':
+        s = callback.data.split("|")[1]
+        cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
+        con.commit()
+        call = get_samplers()
+    else:
+        call = get_steps()
+    await callback.message.edit_text('samplers', reply_markup=call)
+
+
+@dp.callback_query_handler(text_startswith="samplers")
+async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    print('samplers')
+    if callback.data != 'samplers':
+        s = callback.data.split("|")[1]
+        cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
+        con.commit()
+        call = get_models()
+    else:
+        call = get_samplers()
+    await callback.message.edit_text('models', reply_markup=call)
 
 
 # тыкнули на модельку
-@dp.callback_query_handler(text_startswith="model")
+@dp.callback_query_handler(text_startswith="models")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    s = callback.data.split("|")[1]
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    #for item in response.json():
-    result = [x['title'] for x in response.json() if x["model_name"]==s]
-    # меняем модель в памяти
-    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
-    con.commit()
-    data = create_post('gen')
-    with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+    print('models')
+    if callback.data != 'models':
+        s = callback.data.split("|")[1]
+        response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+        #for item in response.json():
+        result = [x['title'] for x in response.json() if x["model_name"]==s]
+        # меняем модель в памяти
+        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
+        cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
+        con.commit()
+        #call = types.ReplyKeyboardRemove()
+        data = create_post('gen')
+        with open('dog.png', 'rb') as photo:
+            await callback.message.delete()
+            await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+            await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+    else:
+        await callback.message.edit_text('models', reply_markup=get_models())
 
-
-@dp.callback_query_handler(text_startswith="sampler")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    s = callback.data.split("|")[1]
-    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
-    con.commit()
-    await callback.message.edit_text('model', reply_markup=get_models())
 
 @dp.callback_query_handler(text_startswith="size")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    w = callback.data.split("|")[1].split('_')[0]
-    h = callback.data.split("|")[1].split('_')[1]
-    cur.execute("UPDATE prompts set width = %s, height = %s where user_id = %s", (w, h, callback.from_user.id))
-    con.commit()
-    await callback.message.edit_text('scale', reply_markup=get_scale())
+    print('size')
+    if callback.data != 'size':
+        w = callback.data.split("|")[1].split('_')[0]
+        h = callback.data.split("|")[1].split('_')[1]
+        cur.execute("UPDATE prompts set width = %s, height = %s where user_id = %s", (w, h, callback.from_user.id))
+        con.commit()
+        call = get_scale()
+    else:
+        call = get_size()
+    await callback.message.edit_text('scale', reply_markup=call)
 
 
 @dp.message_handler()
 async def all_msg_handler(message: types.Message):
+    print('msg')
     button_text = message.text
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (button_text, message.from_user.id))
     con.commit()
