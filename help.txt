@@ -37,3 +37,18 @@ for row in rows:
 
 # Редактирование
 # cur.execute("UPDATE prompts set prompt = 'car' where user_id = '125011869'")
+
+# цикл с добавлением кнопок в 3 ряда
+arr = []
+arr2 = []
+i = 1
+for j in ['11','22','33','44','55']:
+    arr.append([j])
+    if i % 3 == 0:
+        arr2.append(arr)
+        arr = []
+    i += 1
+if arr != []:
+    arr2.append(arr)
+
+print(arr2)

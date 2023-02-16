@@ -86,7 +86,7 @@ def create_post(type: str):
     #print(len(data))
     response = submit_post(txt2img_url, data)
     save_encoded_image(response.json()['images'][0], 'dog.png')
-    print('dog save')
+    print('capture save')
     return data2
 
 def submit_post(url: str, data: dict):
@@ -106,7 +106,7 @@ def save_encoded_image(b64_image: str, output_path: str):
 def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('min', callback_data='min'),
-         InlineKeyboardButton('max', callback_data='max'),
+         InlineKeyboardButton('max', callback_data='max')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -219,11 +219,19 @@ def get_models() -> InlineKeyboardMarkup:
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    arr = [[]]
+    arr = []
+    arr2 = []
+    i = 1
     for item in response.json():
-        arr.append([InlineKeyboardButton(item['model_name'], callback_data='models|'+item['model_name'])])
-    arr.append([InlineKeyboardButton('gen', callback_data='gen')])
-    ikb = InlineKeyboardMarkup(inline_keyboard=arr)
+        arr.append(InlineKeyboardButton(item['model_name'], callback_data='models|'+item['model_name']))
+        if i % 3 == 0:
+             arr2.append(arr)
+             arr = []
+        i += 1
+    if arr != []:
+        arr2.append(arr)
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen')])
+    ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
 # получить список семплеров и вывести его клавиатурой
@@ -231,11 +239,19 @@ def get_samplers() -> InlineKeyboardMarkup:
     print('get_samplers')
     # вытянуть семплеры
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
-    arr = [[]]
+    arr = []
+    arr2 = []
+    i = 1
     for item in response.json():
-        arr.append([InlineKeyboardButton(item['name'], callback_data='samplers|'+item['name'])])
-    arr.append([InlineKeyboardButton('gen', callback_data='gen')])
-    ikb = InlineKeyboardMarkup(inline_keyboard=arr)
+        arr.append(InlineKeyboardButton(item['name'], callback_data='samplers|'+item['name']))
+        if i % 3 == 0:
+             arr2.append(arr)
+             arr = []
+        i += 1
+    if arr != []:
+        arr2.append(arr)
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen')])
+    ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
 @dp.callback_query_handler(text='option')
