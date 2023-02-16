@@ -234,23 +234,23 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
-    await callback.message.edit_text('models', reply_markup=get_models())
+    await callback.message.edit_text('samplers', reply_markup=get_samplers())
 
 
 # тыкнули на модельку
 @dp.callback_query_handler(text_startswith="model")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
-    #print(s)
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     #for item in response.json():
     result = [x['title'] for x in response.json() if x["model_name"]==s]
-    #print(result[0])
     # меняем модель в памяти
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
     con.commit()
-    await callback.message.edit_text('samplers', reply_markup=get_samplers())
+    data = create_post('last')
+    with open('dog.png', 'rb') as photo:
+        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
 
 @dp.callback_query_handler(text_startswith="sampler")
@@ -258,9 +258,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     s = callback.data.split("|")[1]
     cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
-    data = create_post('last')
-    with open('dog.png', 'rb') as photo:
-        await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+    await callback.message.edit_text('model', reply_markup=get_models())
 
 @dp.callback_query_handler(text_startswith="size")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
