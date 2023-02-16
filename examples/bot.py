@@ -106,8 +106,13 @@ def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('min', callback_data='min'),
          InlineKeyboardButton('max', callback_data='max'),
-         InlineKeyboardButton('last', callback_data='last'),
-         InlineKeyboardButton('option', callback_data='option'), ]
+         InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('option', callback_data='option')],[
+         InlineKeyboardButton('size', callback_data='size'),
+         InlineKeyboardButton('scale', callback_data='scale'),
+         InlineKeyboardButton('steps', callback_data='steps'),
+         InlineKeyboardButton('samplers', callback_data='samplers'),
+         InlineKeyboardButton('models', callback_data='models')]
     ])
     return ikb
 
@@ -139,9 +144,9 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
         await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
 
-@dp.callback_query_handler(text='last')
+@dp.callback_query_handler(text='gen')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    data = create_post('last')
+    data = create_post('gen')
     with open('dog.png', 'rb') as photo:
         await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
@@ -162,7 +167,8 @@ def get_size() -> InlineKeyboardMarkup:
          ],[
          InlineKeyboardButton('1024*512', callback_data='size|1024_512'),
          InlineKeyboardButton('1024*768', callback_data='size|1024_768'),
-         InlineKeyboardButton('1024*1024', callback_data='size|1024_1024')
+         InlineKeyboardButton('1024*1024', callback_data='size|1024_1024')],[
+         InlineKeyboardButton('gen', callback_data='gen')
          ]
     ])
     return ikb
@@ -176,8 +182,8 @@ def get_scale() -> InlineKeyboardMarkup:
          InlineKeyboardButton('9',  callback_data='scale|9'),
          InlineKeyboardButton('10', callback_data='scale|10')],[
          InlineKeyboardButton('15', callback_data='scale|15'),
-         InlineKeyboardButton('20', callback_data='scale|20')
-         ]
+         InlineKeyboardButton('20', callback_data='scale|20')],[
+         InlineKeyboardButton('gen', callback_data='gen')]
     ])
     return ikb
 
@@ -189,7 +195,8 @@ def get_steps() -> InlineKeyboardMarkup:
          InlineKeyboardButton('50',  callback_data='steps|50')],[
          InlineKeyboardButton('60',  callback_data='steps|60'),
          InlineKeyboardButton('80',  callback_data='steps|80'),
-         InlineKeyboardButton('100', callback_data='steps|100')
+         InlineKeyboardButton('100', callback_data='steps|100')],[
+         InlineKeyboardButton('gen', callback_data='gen')
          ]
     ])
     return ikb
@@ -213,6 +220,7 @@ def get_samplers() -> InlineKeyboardMarkup:
     arr = [[]]
     for item in response.json():
         arr.append([InlineKeyboardButton(item['name'], callback_data='sampler|'+item['name'])])
+    arr.append([InlineKeyboardButton('gen', callback_data='gen')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr)
     return ikb
 
@@ -221,16 +229,20 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('size', reply_markup=get_size())
 
 
-@dp.callback_query_handler(text_startswith="scale")
+@dp.callback_query_handler(text_startswith="scale") #text_startswith="scale" or
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    s = callback.data.split("|")[1]
-    cur.execute("UPDATE prompts set scale = %s where user_id = %s", (s, callback.from_user.id))
-    con.commit()
+    print(callback.data)
+    if callback.data != 'scale':
+        s = callback.data.split("|")[1]
+        cur.execute("UPDATE prompts set scale = %s where user_id = %s", (s, callback.from_user.id))
+        con.commit()
     await callback.message.edit_text('steps', reply_markup=get_steps())
 
 
 @dp.callback_query_handler(text_startswith="steps")
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    print('steps')
+    print(callback.data)
     s = callback.data.split("|")[1]
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (s, callback.from_user.id))
     con.commit()
@@ -248,7 +260,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
     con.commit()
-    data = create_post('last')
+    data = create_post('gen')
     with open('dog.png', 'rb') as photo:
         await callback.message.reply_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
 
