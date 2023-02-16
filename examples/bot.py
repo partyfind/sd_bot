@@ -117,8 +117,14 @@ def get_ikb() -> InlineKeyboardMarkup:
     ])
     return ikb
 
+# статус. Не работает
+@dp.message_handler(commands=['status'])
+async def cmd_status(message: types.Message) -> None:
+    print('status')
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', '')
+    await bot.send_message(chat_id=message.from_user.id, text=response.json())
 
-@dp.message_handler(commands=['start'])
+@dp.message_handler(commands=['start2'])
 async def cmd_start(message: types.Message) -> None:
     await message.reply('Введи текст', reply_markup=types.ReplyKeyboardRemove())
 
@@ -144,6 +150,8 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text='max')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('max')
+    print(147)
+    #print(data)
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
         await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
@@ -153,7 +161,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text='gen')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen')
-    print(callback.message.message_id)
+    #print(callback.message.message_id)
     data = create_post('gen')
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
