@@ -134,7 +134,7 @@ async def cmd_status(message: types.Message) -> None:
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', '')
     await bot.send_message(chat_id=message.from_user.id, text=response.json())
 
-@dp.message_handler(commands=['start2'])
+@dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
     await message.reply('Введи текст', reply_markup=types.ReplyKeyboardRemove())
 
@@ -360,12 +360,9 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
         cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
         con.commit()
-        #call = types.ReplyKeyboardRemove()
-        data = create_post('gen')
-        with open('dog.png', 'rb') as photo:
-            await callback.message.delete()
-            await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
-            await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+        await bot.send_message(chat_id=callback.from_user.id,
+                               text='Тык',
+                               reply_markup=get_ikb())
     else:
         await callback.message.edit_text('models', reply_markup=get_models())
 
