@@ -62,6 +62,9 @@ def create_post(type: str):
         elif row[5].find('vectorArt') != -1:
             prompt = 'vector style '+prompt
         #prompt = '```'+prompt+'```'
+        count = 1
+        if type == 'gen4':
+            count = 4
         data = {
             'prompt': prompt,
             'steps':  steps,
@@ -71,7 +74,7 @@ def create_post(type: str):
             'model':row[5],
             'negative_prompt': row[6],
             'sampler_index': row[7],
-            'batch_size': 2
+            'batch_size': count
         }
         # для вывода в телегу
         data2 = {
@@ -88,7 +91,10 @@ def create_post(type: str):
     #print(len(data))
     response = submit_post(txt2img_url, data)
     save_encoded_image(response.json()['images'][0], 'dog.png')
-    save_encoded_image(response.json()['images'][1], 'dog2.png')
+    if type == 'gen4':
+        save_encoded_image(response.json()['images'][1], 'dog2.png')
+        save_encoded_image(response.json()['images'][2], 'dog3.png')
+        save_encoded_image(response.json()['images'][3], 'dog4.png')
     print('capture save')
     return data2
 
@@ -111,6 +117,7 @@ def get_ikb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton('min', callback_data='min'),
          InlineKeyboardButton('max', callback_data='max')],[
          InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
@@ -143,18 +150,12 @@ async def send_welcome(message: types.Message):
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('min')
-    #with open('dog.png', 'rb') as photo:
-    #    photo1 = photo
-    #with open('dog2.png', 'rb') as photo:
-    #    photo2 = photo
-    #media = types.MediaGroup()
-    #media.attach_photo(types.InputFile('dog.png'), 'Превосходная фотография')
-    #media.attach_photo(types.InputFile('dog2.png'), 'Превосходная фотография 2')
-    #await bot.reply_media_group(media=media)
-    #await callback.message.delete()
-    #await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
-    #await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
-
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+    await callback.message.delete()
+    await bot.send_media_group(callback.message.chat.id, media=media)
+    await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
 
 @dp.callback_query_handler(text='max')
@@ -177,6 +178,20 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
         await callback.message.delete()
         await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
         await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+
+@dp.callback_query_handler(text='gen4')
+async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    print('gen4')
+    #print(callback.message.message_id)
+    data = create_post('gen4')
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
+    await callback.message.delete()
+    await bot.send_media_group(callback.message.chat.id, media=media)
+    await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
 
 
@@ -206,7 +221,8 @@ def get_size() -> InlineKeyboardMarkup:
          InlineKeyboardButton('1280*1024', callback_data='size|1280_1024'),
          InlineKeyboardButton('1280*1280', callback_data='size|1280_1280')
          ],[
-         InlineKeyboardButton('gen', callback_data='gen')
+         InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen4', callback_data='gen4')
          ]
     ])
     return ikb
@@ -224,7 +240,9 @@ def get_scale() -> InlineKeyboardMarkup:
          InlineKeyboardButton('13', callback_data='scale|13'),
          InlineKeyboardButton('15', callback_data='scale|15'),
          InlineKeyboardButton('20', callback_data='scale|20')],[
-         InlineKeyboardButton('gen', callback_data='gen')]
+         InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen4', callback_data='gen4')
+         ]
     ])
     return ikb
 
@@ -237,7 +255,8 @@ def get_steps() -> InlineKeyboardMarkup:
          InlineKeyboardButton('60',  callback_data='steps|60'),
          InlineKeyboardButton('80',  callback_data='steps|80'),
          InlineKeyboardButton('100', callback_data='steps|100')],[
-         InlineKeyboardButton('gen', callback_data='gen')
+         InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen4', callback_data='gen4')
          ]
     ])
     return ikb
@@ -260,7 +279,7 @@ def get_models() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
@@ -280,7 +299,7 @@ def get_samplers() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
