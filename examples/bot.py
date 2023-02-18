@@ -360,6 +360,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
         cur.execute("UPDATE prompts set model = %s where user_id = %s", (result[0], callback.from_user.id))
         con.commit()
+        await callback.message.delete()
         await bot.send_message(chat_id=callback.from_user.id,
                                text='Тык',
                                reply_markup=get_ikb())
