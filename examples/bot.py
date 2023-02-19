@@ -4,6 +4,7 @@ import base64
 import requests
 import random
 import math
+import time
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 #from aiogram.dispatcher.filters import Text
@@ -167,19 +168,21 @@ async def rnd(callback: types.CallbackQuery) -> None:
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    steps = math.ceil(random.uniform(20, 100))
+    #steps = math.ceil(random.uniform(20, 100))
+    steps = 20
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
 
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    time.sleep(5)
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     arr = []
     for item in response.json():
         arr.append(item['title'])
-    print(arr)
     model = math.ceil(random.uniform(1, len(arr)))
+    print(arr[model])
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
     con.commit()
 
@@ -202,6 +205,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     await callback.message.delete()
     await bot.send_media_group(callback.message.chat.id, media=media)
     await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=prompt, reply_markup=get_ikb())
 
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
