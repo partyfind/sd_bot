@@ -168,8 +168,8 @@ async def rnd(callback: types.CallbackQuery) -> None:
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    #steps = math.ceil(random.uniform(20, 100))
-    steps = 20
+    steps = math.ceil(random.uniform(20, 60))
+    #steps = 20
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
 
@@ -205,7 +205,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     await callback.message.delete()
     await bot.send_media_group(callback.message.chat.id, media=media)
     await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
-    await bot.send_message(chat_id=callback.from_user.id, text=prompt, reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=prompt)
 
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
