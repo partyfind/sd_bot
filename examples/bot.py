@@ -181,7 +181,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
     for item in response.json():
         arr.append(item['title'])
-    model = math.ceil(random.uniform(1, len(arr)))
+    model = math.ceil(random.uniform(1, len(arr)))-1
     print(arr[model])
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
     con.commit()
@@ -191,7 +191,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
     for item in response.json():
         arr.append(item['name'])
-    sampler = math.ceil(random.uniform(1, len(arr)))
+    sampler = math.ceil(random.uniform(1, len(arr)))-1
     cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], callback.from_user.id))
     con.commit()
 
