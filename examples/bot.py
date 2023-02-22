@@ -5,6 +5,8 @@ import requests
 import random
 import math
 import time
+import os
+
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 #from aiogram.dispatcher.filters import Text
@@ -62,8 +64,14 @@ def create_post(type: str):
             prompt = 'ghibli style '+prompt
         elif row[5].find('future') != -1:
             prompt = 'future style '+prompt
-        elif row[5].find('vectorArt') != -1:
-            prompt = 'vector style '+prompt
+        elif row[5].find('cuteRichstyle15_cuteRichstyle') != -1:
+            prompt = 'cbzbb style '+prompt
+        elif row[5].find('synthwavepunk') != -1:
+            prompt = 'NVINKPUNK '+prompt
+        elif row[5].find('realisticVision') != -1:
+            prompt = 'ANALOG STYLE '+prompt
+        elif row[5].find('KhrushchevkaDiffusion') != -1:
+            prompt = 'khrushchevka '+prompt
         #prompt = '```'+prompt+'```'
         count = 1
         if type == 'gen4':
