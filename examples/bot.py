@@ -8,8 +8,9 @@ import time
 import os
 from googletrans import Translator
 
+
 from aiogram import types, executor, Dispatcher, Bot
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 #from aiogram.dispatcher.filters import Text
 #from aiogram.utils.callback_data import CallbackData
 
@@ -29,7 +30,7 @@ cur = con.cursor()
 bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
 
-def create_post(type: str):
+def create_post(type: str, hr: str):
     print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
@@ -79,17 +80,40 @@ def create_post(type: str):
         count = 1
         if type == 'gen4':
             count = 4
-        data = {
-            'prompt': prompt,
-            'steps':  steps,
-            'width':  width,
-            'height': height,
-            'cfg_scale': cfg_scale,
-            'model':row[5],
-            'negative_prompt': row[6],
-            'sampler_index': row[7],
-            'batch_size': count
-        }
+
+        if hr == 'hr':
+            data = {
+                'prompt': prompt,
+                'steps':  steps,
+                'width':  width,
+                'height': height,
+                'cfg_scale': cfg_scale,
+                'model':row[5],
+                'negative_prompt': row[6],
+                'sampler_index': row[7],
+                'batch_size': count,
+                'enable_hr': 'true',
+                'denoising_strength': 0.7,
+                'firstphase_width': 0,
+                'firstphase_height': 0,
+                'hr_scale': 2,
+                'hr_upscaler': 'R-ESRGAN 4x+',
+                'hr_second_pass_steps': 0,
+                'hr_resize_x': 0,
+                'hr_resize_y': 0
+            }
+        else:
+            data = {
+                'prompt': prompt,
+                'steps':  steps,
+                'width':  width,
+                'height': height,
+                'cfg_scale': cfg_scale,
+                'model':row[5],
+                'negative_prompt': row[6],
+                'sampler_index': row[7],
+                'batch_size': count
+            }
         # для вывода в телегу
         data2 = {
             #'prompt': prompt,
@@ -104,6 +128,7 @@ def create_post(type: str):
     #con.close()
     #print(len(data))
     response = submit_post(txt2img_url, data)
+    #print(response.json())
     save_encoded_image(response.json()['images'][0], 'dog.png')
     if type == 'gen4':
         save_encoded_image(response.json()['images'][1], 'dog2.png')
@@ -132,6 +157,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('max', callback_data='max')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
          InlineKeyboardButton('random', callback_data='random'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -161,6 +187,9 @@ async def send_welcome(message: types.Message):
     con.commit()
     await message.reply("Негатив записан")
 
+def f():
+  threading.Timer(600.0, f).start()  # Перезапуск через 5 секунд
+  print("Hello!")
 
 @dp.callback_query_handler(text='random')
 async def rnd(callback: types.CallbackQuery) -> None:
@@ -257,6 +286,19 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
         await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
         await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
+@dp.callback_query_handler(text='gen_hr')
+async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    print('gen')
+    #print(callback.message.message_id)
+    data = create_post('gen', 'hr')
+    #text_file = BufferedInputFile(b"Hello, world!", filename="file.txt")
+    with open('dog.png', 'rb') as photo:
+        await callback.message.delete()
+        #await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_document(callback.from_user.id, photo)
+        #await BufferedInputFile(b"Hello, world!", filename="dog.png")
+        await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
+
 @dp.callback_query_handler(text='gen4')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen4')
@@ -300,6 +342,7 @@ def get_size() -> InlineKeyboardMarkup:
          InlineKeyboardButton('1280*1280', callback_data='size|1280_1280')
          ],[
          InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
          InlineKeyboardButton('gen4', callback_data='gen4')
          ]
     ])
@@ -319,6 +362,7 @@ def get_scale() -> InlineKeyboardMarkup:
          InlineKeyboardButton('15', callback_data='scale|15'),
          InlineKeyboardButton('20', callback_data='scale|20')],[
          InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
          InlineKeyboardButton('gen4', callback_data='gen4')
          ]
     ])
@@ -334,6 +378,7 @@ def get_steps() -> InlineKeyboardMarkup:
          InlineKeyboardButton('80',  callback_data='steps|80'),
          InlineKeyboardButton('100', callback_data='steps|100')],[
          InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
          InlineKeyboardButton('gen4', callback_data='gen4')
          ]
     ])
@@ -357,7 +402,7 @@ def get_models() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen_hr', callback_data='gen_hr'), InlineKeyboardButton('gen4', callback_data='gen4')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
@@ -377,7 +422,7 @@ def get_samplers() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen_hr', callback_data='gen_hr'), InlineKeyboardButton('gen4', callback_data='gen4')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 

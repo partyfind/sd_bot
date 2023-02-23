@@ -1,20 +1,10 @@
-import json
-import random
-import math
-arr = []
-with open('random.json', encoding='utf-8') as json_file:
-    data = json.load(json_file)
-    for i in data['messages']:
-        if i['text'] != '':
-            arr.append(i['text'])
-n = math.ceil(random.uniform(0, len(arr)-1))
-print(arr[0])
-print(arr[1])
-print(arr[2])
-#print(arr[3])
-print(n)
-print(arr[n])
+import threading
 
+def f():
+  threading.Timer(600.0, f).start()  # Перезапуск через 5 секунд
+  print("Hello!")
+
+f()
 """import openai
 
 openai.Completion.create(
