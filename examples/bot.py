@@ -7,7 +7,7 @@ import math
 import time
 import os
 from googletrans import Translator
-
+import threading
 
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
@@ -187,9 +187,71 @@ async def send_welcome(message: types.Message):
     con.commit()
     await message.reply("Негатив записан")
 
-def f():
-  threading.Timer(600.0, f).start()  # Перезапуск через 5 секунд
-  print("Hello!")
+@dp.message_handler(commands=['rnd'])
+async def send_welcome(message: types.Message):
+    randarr()
+
+def randarr():
+  threading.Timer(600.0, randarr).start()  # Перезапуск через 600 секунд
+  arr = []
+  with open('random.json', encoding='utf-8') as json_file:
+      data = json.load(json_file)
+      for i in data['messages']:
+          if i['text'] != '':
+              arr.append(i['text'])
+  n = math.ceil(random.uniform(0, len(arr) - 1))
+  translator = Translator()
+  if data['messages'][n]['text'][0][0] != '':
+      txt = data['messages'][n]['text']
+  else:
+      txt = data['messages'][n]['text']
+  translated = translator.translate(txt)
+  prompt = translated.text
+  cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, 125011869))
+  con.commit()
+
+  scale = math.ceil(random.uniform(1, 20))
+  cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, 125011869))
+  con.commit()
+
+  steps = math.ceil(random.uniform(20, 60))
+  # steps = 20
+  cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, 125011869))
+  con.commit()
+
+  # обновить папку с моделями
+  requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+  time.sleep(5)
+  # вытянуть модели
+  response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+  arr = []
+  for item in response.json():
+      arr.append(item['title'])
+  model = math.ceil(random.uniform(1, len(arr))) - 1
+  print(arr[model])
+  cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], 125011869))
+  con.commit()
+
+  # вытянуть семплеры
+  response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+  arr = []
+  for item in response.json():
+      arr.append(item['name'])
+  sampler = math.ceil(random.uniform(1, len(arr))) - 1
+  cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], 125011869))
+  con.commit()
+
+  print("new prompt")
+  data = create_post('gen4', '')
+  media = types.MediaGroup()
+  media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
+  media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+  media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
+  media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
+  #await callback.message.delete()
+  bot.send_media_group(125011869, media=media)
+  #await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+  bot.send_message(chat_id=125011869, text=prompt)
 
 @dp.callback_query_handler(text='random')
 async def rnd(callback: types.CallbackQuery) -> None:
@@ -243,7 +305,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     con.commit()
 
     print("new prompt")
-    data = create_post('gen4')
+    data = create_post('gen4', '')
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
     media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
@@ -256,7 +318,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
 
 @dp.callback_query_handler(text='min')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    data = create_post('min')
+    data = create_post('min', '')
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
     media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
@@ -267,7 +329,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 @dp.callback_query_handler(text='max')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    data = create_post('max')
+    data = create_post('max', '')
     print(147)
     #print(data)
     with open('dog.png', 'rb') as photo:
@@ -280,7 +342,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen')
     #print(callback.message.message_id)
-    data = create_post('gen')
+    data = create_post('gen', '')
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
         await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
@@ -290,7 +352,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen')
     #print(callback.message.message_id)
-    data = create_post('gen', 'hr')
+    data = create_post('gen', 'hr', '')
     #text_file = BufferedInputFile(b"Hello, world!", filename="file.txt")
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
@@ -303,7 +365,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen4')
     #print(callback.message.message_id)
-    data = create_post('gen4')
+    data = create_post('gen4', '')
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
     media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
