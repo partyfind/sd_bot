@@ -6,6 +6,7 @@ import random
 import math
 import time
 import os
+from googletrans import Translator
 
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
@@ -72,6 +73,8 @@ def create_post(type: str):
             prompt = 'ANALOG STYLE '+prompt
         elif row[5].find('KhrushchevkaDiffusion') != -1:
             prompt = 'khrushchevka '+prompt
+        elif row[5].find('hrl31') != -1:
+            prompt = 'PHOTOREALISM '+prompt
         #prompt = '```'+prompt+'```'
         count = 1
         if type == 'gen4':
@@ -167,8 +170,15 @@ async def rnd(callback: types.CallbackQuery) -> None:
         for i in data['messages']:
             if i['text'] != '':
                 arr.append(i['text'])
-    n = math.ceil(random.uniform(1, len(arr)))
-    prompt = data['messages'][n]['text']
+    n = math.ceil(random.uniform(0, len(arr)-1))
+    translator = Translator()
+    if data['messages'][n]['text'][0][0] != '':
+        txt = data['messages'][n]['text']
+    else:
+        print(182)
+        txt = data['messages'][n]['text']
+    translated = translator.translate(txt)
+    prompt = translated.text
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
