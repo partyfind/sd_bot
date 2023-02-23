@@ -464,7 +464,10 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 async def all_msg_handler(message: types.Message):
     print('msg')
     button_text = message.text
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (button_text, message.from_user.id))
+    translator = Translator()
+    translated = translator.translate(button_text)
+    prompt = translated.text
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, message.from_user.id))
     con.commit()
     print("Record inserted successfully")
     await bot.send_message(chat_id=message.from_user.id,
