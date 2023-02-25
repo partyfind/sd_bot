@@ -294,7 +294,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen')
     #print(callback.message.message_id)
-    data = create_post('gen', 'hr', '')
+    data = create_post('gen', 'hr')
     #text_file = BufferedInputFile(b"Hello, world!", filename="file.txt")
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
