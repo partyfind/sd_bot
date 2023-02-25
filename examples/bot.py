@@ -30,6 +30,34 @@ cur = con.cursor()
 bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
 
+
+def cut_prompt(model: str, prompt: str):
+  if model.find('Inkpunk') != -1:
+    prompt = 'nvinkpunk ' + prompt
+  elif model.find('redshift') != -1:
+    prompt = 'redshift style ' + prompt
+  elif model.find('comic-diffusion') != -1:
+    prompt = 'charliebo artstyle ' + prompt
+  elif model.find('robo-diffusion') != -1:
+    prompt = 'nousr robot ' + prompt
+  elif model.find('openjourneyAka_v1') != -1:
+    prompt = 'mdjrny-v4 style ' + prompt
+  elif model.find('ghibli') != -1:
+    prompt = 'ghibli style ' + prompt
+  elif model.find('future') != -1:
+    prompt = 'future style ' + prompt
+  elif model.find('cuteRichstyle15_cuteRichstyle') != -1:
+    prompt = 'cbzbb style ' + prompt
+  elif model.find('synthwavepunk') != -1:
+    prompt = 'NVINKPUNK ' + prompt
+  elif model.find('realisticVision') != -1:
+    prompt = 'ANALOG STYLE ' + prompt
+  elif model.find('KhrushchevkaDiffusion') != -1:
+    prompt = 'khrushchevka ' + prompt
+  elif model.find('hrl31') != -1:
+    prompt = 'PHOTOREALISM ' + prompt
+  return prompt
+
 def create_post(type: str, hr: str):
     print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
@@ -52,30 +80,8 @@ def create_post(type: str, hr: str):
             height = row[3]
             cfg_scale = row[4]
         prompt = row[0]
-        if row[5].find('Inkpunk') != -1:
-            prompt = 'nvinkpunk '+prompt
-        elif row[5].find('redshift') != -1:
-            prompt = 'redshift style '+prompt
-        elif row[5].find('comic-diffusion') != -1:
-            prompt = 'charliebo artstyle '+prompt
-        elif row[5].find('robo-diffusion') != -1:
-            prompt = 'nousr robot '+prompt
-        elif row[5].find('openjourneyAka_v1') != -1:
-            prompt = 'mdjrny-v4 style '+prompt
-        elif row[5].find('ghibli') != -1:
-            prompt = 'ghibli style '+prompt
-        elif row[5].find('future') != -1:
-            prompt = 'future style '+prompt
-        elif row[5].find('cuteRichstyle15_cuteRichstyle') != -1:
-            prompt = 'cbzbb style '+prompt
-        elif row[5].find('synthwavepunk') != -1:
-            prompt = 'NVINKPUNK '+prompt
-        elif row[5].find('realisticVision') != -1:
-            prompt = 'ANALOG STYLE '+prompt
-        elif row[5].find('KhrushchevkaDiffusion') != -1:
-            prompt = 'khrushchevka '+prompt
-        elif row[5].find('hrl31') != -1:
-            prompt = 'PHOTOREALISM '+prompt
+        # добавляем промпту префикс модельки
+        cut_prompt(row[5], prompt)
         #prompt = '```'+prompt+'```'
         count = 1
         if type == 'gen4':
@@ -187,72 +193,6 @@ async def send_welcome(message: types.Message):
     con.commit()
     await message.reply("Негатив записан")
 
-@dp.message_handler(commands=['rnd'])
-async def send_welcome(message: types.Message):
-    randarr()
-
-def randarr():
-  threading.Timer(600.0, randarr).start()  # Перезапуск через 600 секунд
-  arr = []
-  with open('random.json', encoding='utf-8') as json_file:
-      data = json.load(json_file)
-      for i in data['messages']:
-          if i['text'] != '':
-              arr.append(i['text'])
-  n = math.ceil(random.uniform(0, len(arr) - 1))
-  translator = Translator()
-  if data['messages'][n]['text'][0][0] != '':
-      txt = data['messages'][n]['text']
-  else:
-      txt = data['messages'][n]['text']
-  translated = translator.translate(txt)
-  prompt = translated.text
-  cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, 125011869))
-  con.commit()
-
-  scale = math.ceil(random.uniform(1, 20))
-  cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, 125011869))
-  con.commit()
-
-  steps = math.ceil(random.uniform(20, 60))
-  # steps = 20
-  cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, 125011869))
-  con.commit()
-
-  # обновить папку с моделями
-  requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-  time.sleep(5)
-  # вытянуть модели
-  response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-  arr = []
-  for item in response.json():
-      arr.append(item['title'])
-  model = math.ceil(random.uniform(1, len(arr))) - 1
-  print(arr[model])
-  cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], 125011869))
-  con.commit()
-
-  # вытянуть семплеры
-  response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
-  arr = []
-  for item in response.json():
-      arr.append(item['name'])
-  sampler = math.ceil(random.uniform(1, len(arr))) - 1
-  cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], 125011869))
-  con.commit()
-
-  print("new prompt")
-  data = create_post('gen4', '')
-  media = types.MediaGroup()
-  media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
-  media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
-  media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
-  media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
-  #await callback.message.delete()
-  bot.send_media_group(125011869, media=media)
-  #await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
-  bot.send_message(chat_id=125011869, text=prompt)
-
 @dp.callback_query_handler(text='random')
 async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
@@ -261,38 +201,40 @@ async def rnd(callback: types.CallbackQuery) -> None:
         for i in data['messages']:
             if i['text'] != '':
                 arr.append(i['text'])
-    n = math.ceil(random.uniform(0, len(arr)-1))
-    translator = Translator()
-    if data['messages'][n]['text'][0][0] != '':
-        txt = data['messages'][n]['text']
-    else:
-        print(182)
-        txt = data['messages'][n]['text']
-    translated = translator.translate(txt)
-    prompt = translated.text
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
-    con.commit()
 
     scale = math.ceil(random.uniform(1, 20))
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    steps = math.ceil(random.uniform(20, 60))
-    #steps = 20
+    #steps = math.ceil(random.uniform(20, 60))
+    steps = 20
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
 
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-    time.sleep(5)
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
     arr = []
     for item in response.json():
         arr.append(item['title'])
-    model = math.ceil(random.uniform(1, len(arr)))-1
+    model = math.ceil(random.uniform(1, len(arr))) - 1
     print(arr[model])
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], 125011869))
+    con.commit()
+    # меняем модель в памяти
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
+    time.sleep(5)
+
+    # промпты
+    n = math.ceil(random.uniform(0, len(arr)-1))
+    translator = Translator()
+    txt = data['messages'][n]['text']
+    translated = translator.translate(txt)
+    prompt = translated.text
+    cut_prompt(arr[model], prompt)
+    print(prompt)
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
     # вытянуть семплеры
@@ -539,7 +481,6 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     if callback.data != 'models':
         s = callback.data.split("|")[1]
         response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-        #for item in response.json():
         result = [x['title'] for x in response.json() if x["model_name"]==s]
         # меняем модель в памяти
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint':result[0]})
