@@ -11,10 +11,6 @@ import threading
 
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
-#from aiogram.dispatcher.filters import Text
-#from aiogram.utils.callback_data import CallbackData
-
-#from config import TOKEN_API
 
 con = psycopg2.connect(
   database="postgres",
@@ -84,10 +80,10 @@ def create_post(type: str, hr: str):
         cut_prompt(row[5], prompt)
         #prompt = '```'+prompt+'```'
         count = 1
-        if type == 'gen4':
+        if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
             count = 4
 
-        if hr == 'hr':
+        if hr == 'hr' or hr == 'hr4':
             data = {
                 'prompt': prompt,
                 'steps':  steps,
@@ -136,7 +132,7 @@ def create_post(type: str, hr: str):
     response = submit_post(txt2img_url, data)
     #print(response.json())
     save_encoded_image(response.json()['images'][0], 'dog.png')
-    if type == 'gen4':
+    if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
         save_encoded_image(response.json()['images'][1], 'dog2.png')
         save_encoded_image(response.json()['images'][2], 'dog3.png')
         save_encoded_image(response.json()['images'][3], 'dog4.png')
@@ -148,7 +144,6 @@ def submit_post(url: str, data: dict):
 
 def submit_get(url: str, data: dict):
     return requests.get(url, data=json.dumps(data))
-
 
 def save_encoded_image(b64_image: str, output_path: str):
     """
@@ -164,6 +159,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')],[
          InlineKeyboardButton('random', callback_data='random'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -264,13 +260,15 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
     media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
     await callback.message.delete()
     await bot.send_media_group(callback.message.chat.id, media=media)
     await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
 
 @dp.callback_query_handler(text='max')
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_2(callback: types.CallbackQuery) -> None:
     data = create_post('max', '')
     print(147)
     #print(data)
@@ -281,7 +279,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 
 @dp.callback_query_handler(text='gen')
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_3(callback: types.CallbackQuery) -> None:
     print('gen')
     #print(callback.message.message_id)
     data = create_post('gen', '')
@@ -292,19 +290,40 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 @dp.callback_query_handler(text='gen_hr')
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    print('gen')
-    #print(callback.message.message_id)
+    print('gen_hr')
     data = create_post('gen', 'hr')
-    #text_file = BufferedInputFile(b"Hello, world!", filename="file.txt")
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
-        #await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
         await bot.send_document(callback.from_user.id, photo)
-        #await BufferedInputFile(b"Hello, world!", filename="dog.png")
         await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
 
+@dp.callback_query_handler(text='gen_hr4')
+async def cb_menu_5(callback: types.CallbackQuery) -> None:
+    print('gen_hr4')
+    data = create_post('gen', 'hr4')
+    #media = types.MediaGroup()
+    with open('dog.png', 'rb') as photo:
+        await callback.message.delete()
+        await bot.send_document(callback.from_user.id, photo)
+    with open('dog2.png', 'rb') as photo:
+        await bot.send_document(callback.from_user.id, photo)
+    with open('dog3.png', 'rb') as photo:
+        await bot.send_document(callback.from_user.id, photo)
+    with open('dog4.png', 'rb') as photo:
+        await bot.send_document(callback.from_user.id, photo)
+        await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
+    """
+    media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
+    await callback.message.delete()
+    await bot.send_media_group(callback.message.chat.id, media=media)
+    await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
+    """
+
 @dp.callback_query_handler(text='gen4')
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_6(callback: types.CallbackQuery) -> None:
     print('gen4')
     #print(callback.message.message_id)
     data = create_post('gen4', '')
@@ -346,8 +365,8 @@ def get_size() -> InlineKeyboardMarkup:
          InlineKeyboardButton('1280*1280', callback_data='size|1280_1280')
          ],[
          InlineKeyboardButton('gen', callback_data='gen'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen4', callback_data='gen4')
+         InlineKeyboardButton('gen4', callback_data='gen4'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr')
          ]
     ])
     return ikb
@@ -366,8 +385,8 @@ def get_scale() -> InlineKeyboardMarkup:
          InlineKeyboardButton('15', callback_data='scale|15'),
          InlineKeyboardButton('20', callback_data='scale|20')],[
          InlineKeyboardButton('gen', callback_data='gen'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen4', callback_data='gen4')
+            InlineKeyboardButton('gen4', callback_data='gen4'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr')
          ]
     ])
     return ikb
@@ -382,8 +401,8 @@ def get_steps() -> InlineKeyboardMarkup:
          InlineKeyboardButton('80',  callback_data='steps|80'),
          InlineKeyboardButton('100', callback_data='steps|100')],[
          InlineKeyboardButton('gen', callback_data='gen'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen4', callback_data='gen4')
+         InlineKeyboardButton('gen4', callback_data='gen4'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr')
          ]
     ])
     return ikb
@@ -406,7 +425,7 @@ def get_models() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen_hr', callback_data='gen_hr'), InlineKeyboardButton('gen4', callback_data='gen4')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4'), InlineKeyboardButton('gen_hr', callback_data='gen_hr')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
@@ -426,17 +445,17 @@ def get_samplers() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen_hr', callback_data='gen_hr'), InlineKeyboardButton('gen4', callback_data='gen4')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4'), InlineKeyboardButton('gen_hr', callback_data='gen_hr')])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
 @dp.callback_query_handler(text='option')
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_7(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('size', reply_markup=get_size())
 
 
 @dp.callback_query_handler(text_startswith="scale")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_8(callback: types.CallbackQuery) -> None:
     print('scale')
     if callback.data != 'scale':
         s = callback.data.split("|")[1]
@@ -449,7 +468,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 
 @dp.callback_query_handler(text_startswith="steps")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_9(callback: types.CallbackQuery) -> None:
     print('steps')
     if callback.data != 'steps':
         s = callback.data.split("|")[1]
@@ -462,7 +481,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 
 @dp.callback_query_handler(text_startswith="samplers")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_10(callback: types.CallbackQuery) -> None:
     print('samplers')
     if callback.data != 'samplers':
         s = callback.data.split("|")[1]
@@ -476,7 +495,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 # тыкнули на модельку
 @dp.callback_query_handler(text_startswith="models")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_11(callback: types.CallbackQuery) -> None:
     print('models')
     if callback.data != 'models':
         s = callback.data.split("|")[1]
@@ -495,7 +514,7 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
 
 
 @dp.callback_query_handler(text_startswith="size")
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
+async def cb_menu_12(callback: types.CallbackQuery) -> None:
     print('size')
     if callback.data != 'size':
         w = callback.data.split("|")[1].split('_')[0]
