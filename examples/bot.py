@@ -158,8 +158,8 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('max', callback_data='max')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')],[
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
+         #InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')
          InlineKeyboardButton('random', callback_data='random'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -197,13 +197,19 @@ async def rnd(callback: types.CallbackQuery) -> None:
         for i in data['messages']:
             if i['text'] != '':
                 arr.append(i['text'])
+    n = math.ceil(random.uniform(0, len(arr) - 1))
+    translator = Translator()
+    translated = translator.translate(arr[n])
+    prompt = translated.text
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, 125011869))
+    con.commit()
 
     scale = math.ceil(random.uniform(1, 20))
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    #steps = math.ceil(random.uniform(20, 60))
-    steps = 20
+    steps = math.ceil(random.uniform(20, 60))
+    #steps = 20
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
 
