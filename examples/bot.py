@@ -189,6 +189,38 @@ async def send_welcome(message: types.Message):
     con.commit()
     await message.reply("Негатив записан")
 
+# проходимся одним запросом по всем моделям
+@dp.message_handler(commands=['rnd'])
+async def send_welcome(message: types.Message):
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = []
+    #i = 0
+    # заполняем актуальный массив моделей в arr
+    for item in response.json():
+        arr.append(item['title'])
+    # запускаем цикл по списку
+    for title in arr:
+        #if i < 5:
+        # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
+        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, message.from_user.id))
+        con.commit()
+        # меняем модель в памяти
+        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
+        time.sleep(5)
+        data = create_post('gen', '')
+        # пока не через media
+        with open('dog.png', 'rb') as photo:
+            await bot.send_photo(message.from_user.id,photo,title)
+            #i += 1
+    # Для вывода итогов в конце тянем промпт и описание из data
+    cur.execute("SELECT prompt from prompts")
+    rows = cur.fetchall()
+    await message.reply(rows[0])
+    await message.reply(data)
+
 @dp.callback_query_handler(text='random')
 async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
@@ -201,7 +233,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     translator = Translator()
     translated = translator.translate(arr[n])
     prompt = translated.text
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, 125011869))
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
     scale = math.ceil(random.uniform(1, 20))
@@ -222,7 +254,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
         arr.append(item['title'])
     model = math.ceil(random.uniform(1, len(arr))) - 1
     print(arr[model])
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], 125011869))
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
     con.commit()
     # меняем модель в памяти
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
