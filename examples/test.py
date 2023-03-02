@@ -1,74 +1,21 @@
-def cut_prompt(model: str, prompt: str):
-  if model.find('Inkpunk') != -1:
-    prompt = 'nvinkpunk ' + prompt
-  elif model.find('redshift') != -1:
-    prompt = 'redshift style ' + prompt
-  elif model.find('comic-diffusion') != -1:
-    prompt = 'charliebo artstyle ' + prompt
-  elif model.find('robo-diffusion') != -1:
-    prompt = 'nousr robot ' + prompt
-  elif model.find('openjourneyAka_v1') != -1:
-    prompt = 'mdjrny-v4 style ' + prompt
-  elif model.find('ghibli') != -1:
-    prompt = 'ghibli style ' + prompt
-  elif model.find('future') != -1:
-    prompt = 'future style ' + prompt
-  elif model.find('cuteRichstyle15_cuteRichstyle') != -1:
-    prompt = 'cbzbb style ' + prompt
-  elif model.find('synthwavepunk') != -1:
-    prompt = 'NVINKPUNK ' + prompt
-  elif model.find('realisticVision') != -1:
-    prompt = 'ANALOG STYLE ' + prompt
-  elif model.find('KhrushchevkaDiffusion') != -1:
-    prompt = 'khrushchevka ' + prompt
-  elif model.find('hrl31') != -1:
-    prompt = 'PHOTOREALISM ' + prompt
-  return prompt
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-v2')
 
-print(cut_prompt('KhrushchevkaDiffusion_v10', 'cat in vae'))
+prompt = r'a cat sitting'     # the beginning of the prompt
+temperature = 0.9             # a higher temperature will produce more diverse results, but with a higher risk of less coherent text
+top_k = 8                     # the number of tokens to sample from at each step
+max_length = 80               # the maximum number of tokens for the output of the model
+repitition_penalty = 1.2      # the penalty value for each repetition of a token
+num_return_sequences=5        # the number of results to generate
 
+# generate the result with contrastive search
+input_ids = tokenizer(prompt, return_tensors='pt').input_ids
+output = model.generate(input_ids, do_sample=True, temperature=0.9, top_k=8, max_length=200, num_return_sequences=1, repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=1, early_stopping=True)
 
-"""
-
-import threading
-
-def f():
-  threading.Timer(5.0, f).start()  # Перезапуск через 5 секунд
-  print("Hello!")
-
-f()
-
-
-
-import openai
-
-openai.Completion.create(
-  engine="davinci",
-  prompt="Make a list of astronomical observatories:"
-)
-
-import openai
-openai.api_key = API_KEY
-prompt = "Say this is a test"
-response = openai.Completion.create(
-    engine="text-davinci-001", prompt=prompt, max_tokens=6
-)
-print(response)
-
-import googletrans
-#print(googletrans.LANGUAGES)
-from googletrans import Translator
-result = Translator.translate('Привет')
-print(result.src)
-print(result.dest)
-print(result.origin)
-print(result.text)
-print(result.pronunciation)
-
-from googletrans import Translator
-
-translator = Translator()
-translated = translator.translate('Words check')
-
-print(translated.text)
-"""
+print('\nInput:\n' + 100 * '-')
+print('\033[96m' + prompt + '\033[0m')
+print('\nOutput:\n' + 100 * '-')
+for i in range(len(output)):
+    print('\033[92m' + tokenizer.decode(output[i], skip_special_tokens=True) + '\033[0m\n')

@@ -5,9 +5,13 @@ import requests
 import random
 import math
 import time
-import os
+#import os
 from googletrans import Translator
-import threading
+#import threading
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-v2')
 
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
@@ -161,6 +165,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
          #InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')
          InlineKeyboardButton('random', callback_data='random'),
+         InlineKeyboardButton('prompt', callback_data='prompt'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
@@ -201,6 +206,7 @@ async def send_welcome(message: types.Message):
     # заполняем актуальный массив моделей в arr
     for item in response.json():
         arr.append(item['title'])
+    await message.reply('Ну погнали')
     # запускаем цикл по списку
     for title in arr:
         #if i < 5:
@@ -220,6 +226,16 @@ async def send_welcome(message: types.Message):
     rows = cur.fetchall()
     await message.reply(rows[0])
     await message.reply(data)
+
+# генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
+@dp.callback_query_handler(text='prompt')
+async def prompt(callback: types.CallbackQuery) -> None:
+    cur.execute("SELECT prompt from prompts")
+    input_ids = tokenizer(cur.fetchall()[0], return_tensors='pt').input_ids
+    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=100, num_return_sequences=1,
+                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
+    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
+    await bot.send_message(chat_id=callback.from_user.id, text=prompt)
 
 @dp.callback_query_handler(text='random')
 async def rnd(callback: types.CallbackQuery) -> None:
