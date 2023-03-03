@@ -2,7 +2,6 @@ import psycopg2
 import json
 import base64
 import requests
-import random
 import math
 import time
 #import os
@@ -12,9 +11,9 @@ from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-v2')
-
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+import random
 
 con = psycopg2.connect(
   database="postgres",
@@ -32,6 +31,10 @@ dp = Dispatcher(bot)
 
 
 def cut_prompt(model: str, prompt: str):
+  arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
+  arrNitro = ['archer', 'arcane', 'modern disney']
+  comicNum = random.randint(0, len(arrComic)-1)
+  nitroNum = random.randint(0, len(arrNitro)-1)
   if model.find('Inkpunk') != -1:
     prompt = 'nvinkpunk ' + prompt
   elif model.find('redshift') != -1:
@@ -56,6 +59,10 @@ def cut_prompt(model: str, prompt: str):
     prompt = 'khrushchevka ' + prompt
   elif model.find('hrl31') != -1:
     prompt = 'PHOTOREALISM ' + prompt
+  elif model.find('nitroDiffusion') != -1:
+    prompt = arrNitro[nitroNum] + ' style ' + prompt
+  elif model.find('comic-diffusion') != -1:
+    prompt = arrComic[comicNum] + ' artstyle ' + prompt
   return prompt
 
 def create_post(type: str, hr: str):
@@ -81,7 +88,8 @@ def create_post(type: str, hr: str):
             cfg_scale = row[4]
         prompt = row[0]
         # добавляем промпту префикс модельки
-        cut_prompt(row[5], prompt)
+        prompt = cut_prompt(row[5], prompt)
+        print(prompt)
         #prompt = '```'+prompt+'```'
         count = 1
         if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
@@ -196,7 +204,7 @@ async def send_welcome(message: types.Message):
 
 # проходимся одним запросом по всем моделям
 @dp.message_handler(commands=['rnd'])
-async def send_welcome(message: types.Message):
+async def rnd(message: types.Message):
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
@@ -238,25 +246,25 @@ async def prompt(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text=prompt)
 
 @dp.callback_query_handler(text='random')
-async def rnd(callback: types.CallbackQuery) -> None:
+async def randomCall(callback: types.CallbackQuery) -> None:
     arr = []
     with open('random.json', encoding='utf-8') as json_file:
         data = json.load(json_file)
         for i in data['messages']:
             if i['text'] != '':
                 arr.append(i['text'])
-    n = math.ceil(random.uniform(0, len(arr) - 1))
+    n = random.randint(0, len(arr) - 1)
     translator = Translator()
     translated = translator.translate(arr[n])
     prompt = translated.text
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
-    scale = math.ceil(random.uniform(1, 20))
+    scale = random.randint(1, 20)
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    steps = math.ceil(random.uniform(20, 60))
+    steps = random.randint(20, 60)
     #steps = 20
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
@@ -268,7 +276,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
     for item in response.json():
         arr.append(item['title'])
-    model = math.ceil(random.uniform(1, len(arr))) - 1
+    model = random.randint(1, len(arr)) - 1
     print(arr[model])
     cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
     con.commit()
@@ -277,7 +285,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     time.sleep(5)
 
     # промпты
-    n = math.ceil(random.uniform(0, len(arr)-1))
+    n = random.randint(0, len(arr)-1)
     translator = Translator()
     txt = data['messages'][n]['text']
     translated = translator.translate(txt)
@@ -292,7 +300,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     arr = []
     for item in response.json():
         arr.append(item['name'])
-    sampler = math.ceil(random.uniform(1, len(arr)))-1
+    sampler = random.randint(1, len(arr))-1
     cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], callback.from_user.id))
     con.commit()
 
