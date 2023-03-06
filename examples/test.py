@@ -1,9 +1,14 @@
+import json
+from googletrans import Translator
 import random
-import math
-
-arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
-print(arrComic)
-print(len(arrComic))
-comicNum = random.randint(0, 5)
-print(comicNum)
-print(arrComic[comicNum])
+arr = []
+with open('random.json', encoding='utf-8') as json_file:
+    data = json.load(json_file)
+    for i in data['messages']:
+        if i['text'] != '':
+            arr.append(i['text'])
+n = random.randint(0, len(arr) - 1)
+translator = Translator()
+translated = translator.translate(arr[n])
+prompt = translated.text
+print(prompt)

@@ -202,6 +202,15 @@ async def send_welcome(message: types.Message):
     con.commit()
     await message.reply("Негатив записан")
 
+@dp.message_handler(commands=['models'])
+async def getModels(message: types.Message):
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = ''
+    for item in response.json():
+        arr = arr+'model_name '+item['model_name']+'\n'
+        arr = arr+'title '+item['title']+'\n\n'
+    await message.reply(arr, parse_mode=types.ParseMode.HTML)
+
 # проходимся одним запросом по всем моделям
 @dp.message_handler(commands=['rnd'])
 async def rnd(message: types.Message):
