@@ -2,9 +2,11 @@ import psycopg2
 import json
 import base64
 import requests
+import math
 import time
-import subprocess
+#import os
 from googletrans import Translator
+#import threading
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -27,32 +29,6 @@ cur = con.cursor()
 bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
 
-process = None
-
-def start_sd():
-    global process
-    if not process:
-        print('start_process start_sd')
-        process = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'])
-
-def stop_sd():
-    global process
-    if process:
-        print('stop_process stop_sd')
-        process.terminate()
-        process = None
-
-@dp.callback_query_handler(text='strt')
-async def strt(callback: types.CallbackQuery) -> None:
-    start_sd()
-    print('start sd')
-    await bot.send_message(chat_id=callback.from_user.id, text='SD запущена', reply_markup=get_ikb())
-
-@dp.callback_query_handler(text='stp')
-async def stp(callback: types.CallbackQuery) -> None:
-    stop_sd()
-    print('stop sd')
-    await bot.send_message(chat_id=callback.from_user.id, text='SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
   arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
@@ -189,9 +165,7 @@ def save_encoded_image(b64_image: str, output_path: str):
 def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('min', callback_data='min'),
-         InlineKeyboardButton('max', callback_data='max')],
-        [InlineKeyboardButton('start SD', callback_data='strt'),
-         InlineKeyboardButton('stop SD', callback_data='stp')],[
+         InlineKeyboardButton('max', callback_data='max')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
