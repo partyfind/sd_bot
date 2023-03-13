@@ -46,13 +46,13 @@ def stop_sd():
 async def strt(callback: types.CallbackQuery) -> None:
     start_sd()
     print('start sd')
-    await bot.send_message(chat_id=callback.from_user.id, text='SD запущена', reply_markup=get_ikb())
+    await callback.message.edit_text('SD запущена', reply_markup=get_ikb())
 
 @dp.callback_query_handler(text='stp')
 async def stp(callback: types.CallbackQuery) -> None:
     stop_sd()
     print('stop sd')
-    await bot.send_message(chat_id=callback.from_user.id, text='SD остановлена', reply_markup=get_ikb())
+    await callback.message.edit_text('SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
   arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
@@ -196,7 +196,9 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
          #InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')
+         InlineKeyboardButton('get_opt', callback_data='get_opt'),
          InlineKeyboardButton('random', callback_data='random'),
+         InlineKeyboardButton('rnd', callback_data='rnd'),
          InlineKeyboardButton('prompt', callback_data='prompt'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -213,6 +215,16 @@ async def cmd_status(message: types.Message) -> None:
     print('status')
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', '')
     await bot.send_message(chat_id=message.from_user.id, text=response.json())
+
+# главное меню
+@dp.message_handler(commands=['opt'])
+async def opt(message: types.Message) -> None:
+    await bot.send_message(chat_id=message.from_user.id, text='Опции', reply_markup=get_ikb())
+
+@dp.message_handler(commands=['stop'])
+async def stop(message: types.Message) -> None:
+    stop_sd()
+    await message.reply('SD остановлена', reply_markup=get_ikb())
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
@@ -236,8 +248,8 @@ async def getModels(message: types.Message):
     await message.reply(arr, parse_mode=types.ParseMode.HTML)
 
 # проходимся одним запросом по всем моделям
-@dp.message_handler(commands=['rnd'])
-async def rnd(message: types.Message):
+@dp.callback_query_handler(text='rnd')
+async def rnd(callback: types.CallbackQuery) -> None:
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
@@ -247,26 +259,46 @@ async def rnd(message: types.Message):
     # заполняем актуальный массив моделей в arr
     for item in response.json():
         arr.append(item['title'])
-    await message.reply('Ну погнали')
+    await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
     # запускаем цикл по списку
     for title in arr:
         #if i < 5:
         # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
-        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, message.from_user.id))
+        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
         con.commit()
         # меняем модель в памяти
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
         time.sleep(5)
         data = create_post('gen', '')
+        title = title + '\n/stop'
         # пока не через media
         with open('dog.png', 'rb') as photo:
-            await bot.send_photo(message.from_user.id,photo,title)
+            await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
             #i += 1
     # Для вывода итогов в конце тянем промпт и описание из data
     cur.execute("SELECT prompt from prompts")
     rows = cur.fetchall()
-    await message.reply(rows[0])
-    await message.reply(data)
+    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+    await bot.send_message(chat_id=callback.from_user.id, text=rows[0])
+    await bot.send_message(chat_id=callback.from_user.id, text=data)
+
+# Получить все последнии опции с БД текстом
+@dp.callback_query_handler(text='get_opt')
+async def get_opt(callback: types.CallbackQuery) -> None:
+    cur.execute("SELECT prompt, steps, width, height, scale, negative, sampler, model from prompts")
+    rows = cur.fetchall()
+    for row in rows:
+        prompt = row[0]
+        steps = row[1]
+        width = row[2]
+        height = row[3]
+        scale = row[4]
+        negative = row[5].replace('/negative ', '')
+        sampler = row[6]
+        model = row[7]
+        opt = f'prompt = `{prompt}` \n steps = *{steps}* \n width = *{width}* \n height = *{height}* ' \
+              f'\n scale = *{scale}* \n negative = *{negative}* \n sampler = *{sampler}* \n model = *{model}*'
+    await bot.send_message(chat_id=callback.from_user.id, text=opt, reply_markup=get_ikb(), parse_mode='Markdown')
 
 # генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
 @dp.callback_query_handler(text='prompt')
@@ -520,7 +552,11 @@ def get_models() -> InlineKeyboardMarkup:
         i += 1
     if arr != []:
         arr2.append(arr)
-    arr2.append([InlineKeyboardButton('gen', callback_data='gen'), InlineKeyboardButton('gen4', callback_data='gen4'), InlineKeyboardButton('gen_hr', callback_data='gen_hr')])
+    arr2.append([InlineKeyboardButton('gen', callback_data='gen'),
+                 InlineKeyboardButton('gen4', callback_data='gen4'),
+                 InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+                 InlineKeyboardButton('rnd', callback_data='rnd')
+                 ])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
 
