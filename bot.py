@@ -28,6 +28,7 @@ bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
 
 process = None
+sd = '❌'
 
 def start_sd():
     global process
@@ -44,14 +45,36 @@ def stop_sd():
 
 @dp.callback_query_handler(text='strt')
 async def strt(callback: types.CallbackQuery) -> None:
+    global sd
     start_sd()
     print('start sd')
+    await callback.message.edit_text('SD запущена', reply_markup=get_ikb())
+    url = 'http://127.0.0.1:7861/docs'
+    n = 0
+    while n != 200:
+        time.sleep(2)
+        try:
+            r = requests.get(url, timeout=3)
+            r.raise_for_status()
+            n = r.status_code
+            print(r.status_code)
+        except requests.exceptions.HTTPError as errh:
+            print("Http Error:", errh)
+        except requests.exceptions.ConnectionError as errc:
+            print("Error Connecting:", errc)
+        except requests.exceptions.Timeout as errt:
+            print("Timeout Error:", errt)
+        except requests.exceptions.RequestException as err:
+            print("OOps: Something Else", err)
+    sd = '✅'
     await callback.message.edit_text('SD запущена', reply_markup=get_ikb())
 
 @dp.callback_query_handler(text='stp')
 async def stp(callback: types.CallbackQuery) -> None:
+    global sd
     stop_sd()
     print('stop sd')
+    sd = '❌'
     await callback.message.edit_text('SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
@@ -187,10 +210,12 @@ def save_encoded_image(b64_image: str, output_path: str):
         image_file.write(base64.b64decode(b64_image))
 
 def get_ikb() -> InlineKeyboardMarkup:
+    print(211)
+    print(sd)
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('min', callback_data='min'),
          InlineKeyboardButton('max', callback_data='max')],
-        [InlineKeyboardButton('start SD', callback_data='strt'),
+        [InlineKeyboardButton('start SD'+sd, callback_data='strt'),
          InlineKeyboardButton('stop SD', callback_data='stp')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
@@ -529,7 +554,8 @@ def get_steps() -> InlineKeyboardMarkup:
          InlineKeyboardButton('100', callback_data='steps|100')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr')
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+         InlineKeyboardButton('start SD', callback_data='strt')
          ]
     ])
     return ikb
