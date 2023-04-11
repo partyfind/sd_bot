@@ -4,7 +4,7 @@ import base64
 import requests
 import time
 import subprocess
-from googletrans import Translator
+#from googletrans import Translator
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -12,6 +12,7 @@ model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 import random
+import logging
 
 con = psycopg2.connect(
   database="postgres",
@@ -26,6 +27,16 @@ cur = con.cursor()
 
 bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
 dp = Dispatcher(bot)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Error handling
+async def on_error(update, exception):
+    logging.error(f'Update {update} caused {exception}')
+
+# Register error handling
+dp.register_errors_handler(on_error)
 
 process = None
 sd = '❌'
@@ -78,9 +89,7 @@ async def stp(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
-  arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
   arrNitro = ['archer', 'arcane', 'modern disney']
-  comicNum = random.randint(0, len(arrComic)-1)
   nitroNum = random.randint(0, len(arrNitro)-1)
   if model.find('Inkpunk') != -1:
     prompt = 'nvinkpunk ' + prompt
@@ -102,12 +111,12 @@ def cut_prompt(model: str, prompt: str):
     prompt = 'ANALOG STYLE ' + prompt
   elif model.find('KhrushchevkaDiffusion') != -1:
     prompt = 'khrushchevka ' + prompt
+  elif model.find('kenshi') != -1:
+    prompt = 'semi-realistic ' + prompt
   elif model.find('hrl31') != -1:
     prompt = 'PHOTOREALISM ' + prompt
   elif model.find('nitroDiffusion') != -1:
     prompt = arrNitro[nitroNum] + ' style ' + prompt
-  elif model.find('comic-diffusion') != -1:
-    prompt = arrComic[comicNum] + ' artstyle ' + prompt
   return prompt
 
 def create_post(type: str, hr: str):
@@ -157,9 +166,9 @@ def create_post(type: str, hr: str):
                 'firstphase_height': 0,
                 'hr_scale': 2,
                 'hr_upscaler': 'R-ESRGAN 4x+',
-                'hr_second_pass_steps': 0,
-                'hr_resize_x': 0,
-                'hr_resize_y': 0
+                'hr_second_pass_steps': 15,
+                'hr_resize_x': width*2,
+                'hr_resize_y': height*2
             }
         else:
             data = {
@@ -210,8 +219,6 @@ def save_encoded_image(b64_image: str, output_path: str):
         image_file.write(base64.b64decode(b64_image))
 
 def get_ikb() -> InlineKeyboardMarkup:
-    print(211)
-    print(sd)
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('min', callback_data='min'),
          InlineKeyboardButton('max', callback_data='max')],
@@ -224,6 +231,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('get_opt', callback_data='get_opt'),
          InlineKeyboardButton('random', callback_data='random'),
          InlineKeyboardButton('rnd', callback_data='rnd'),
+         InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
          InlineKeyboardButton('prompt', callback_data='prompt'),
          InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -248,7 +256,9 @@ async def opt(message: types.Message) -> None:
 
 @dp.message_handler(commands=['stop'])
 async def stop(message: types.Message) -> None:
+    global sd
     stop_sd()
+    sd = '❌'
     await message.reply('SD остановлена', reply_markup=get_ikb())
 
 @dp.message_handler(commands=['start'])
@@ -271,6 +281,44 @@ async def getModels(message: types.Message):
         arr = arr+'model_name '+item['model_name']+'\n'
         arr = arr+'title '+item['title']+'\n\n'
     await message.reply(arr, parse_mode=types.ParseMode.HTML)
+
+@dp.callback_query_handler(text='rnd_rev')
+async def rnd_rev(callback: types.CallbackQuery) -> None:
+    # повторение rnd
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = []
+    #i = 0
+    # заполняем актуальный массив моделей в arr
+    for item in response.json():
+        arr.append(item['title'])
+    arr = list(reversed(arr))
+    await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
+    # запускаем цикл по списку
+    for title in arr:
+        #if i < 5:
+        # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
+        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+        con.commit()
+        # меняем модель в памяти
+        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
+        time.sleep(5)
+        data = create_post('gen', '')
+        title = title + '\n/stop \n/opt '
+        # пока не через media
+        with open('dog.png', 'rb') as photo:
+            await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+            #i += 1
+    # Для вывода итогов в конце тянем промпт и описание из data
+    cur.execute("SELECT prompt from prompts")
+    rows = cur.fetchall()
+    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
+
 
 # проходимся одним запросом по всем моделям
 @dp.callback_query_handler(text='rnd')
@@ -295,7 +343,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
         time.sleep(5)
         data = create_post('gen', '')
-        title = title + '\n/stop'
+        title = title + '\n/stop \n/opt '
         # пока не через media
         with open('dog.png', 'rb') as photo:
             await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
@@ -304,8 +352,9 @@ async def rnd(callback: types.CallbackQuery) -> None:
     cur.execute("SELECT prompt from prompts")
     rows = cur.fetchall()
     # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-    await bot.send_message(chat_id=callback.from_user.id, text=rows[0])
-    await bot.send_message(chat_id=callback.from_user.id, text=data)
+    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
 # Получить все последнии опции с БД текстом
 @dp.callback_query_handler(text='get_opt')
@@ -344,9 +393,9 @@ async def randomCall(callback: types.CallbackQuery) -> None:
             if i['text'] != '':
                 arr.append(i['text'])
     n = random.randint(0, len(arr) - 1)
-    translator = Translator()
-    translated = translator.translate(arr[n])
-    prompt = translated.text
+    #translator = Translator()
+    #translated = translator.translate(arr[n])
+    prompt = arr[n]#translated.text
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
@@ -376,10 +425,10 @@ async def randomCall(callback: types.CallbackQuery) -> None:
 
     # промпты
     n = random.randint(0, len(arr)-1)
-    translator = Translator()
-    txt = data['messages'][n]['text']
-    translated = translator.translate(txt)
-    prompt = translated.text
+    #translator = Translator()
+    #txt = data['messages'][n]['text']
+    translated = data['messages'][n]['text']#translator.translate(txt)
+    prompt = translated#.text
     cut_prompt(arr[model], prompt)
     print(prompt)
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
@@ -581,7 +630,8 @@ def get_models() -> InlineKeyboardMarkup:
     arr2.append([InlineKeyboardButton('gen', callback_data='gen'),
                  InlineKeyboardButton('gen4', callback_data='gen4'),
                  InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-                 InlineKeyboardButton('rnd', callback_data='rnd')
+                 InlineKeyboardButton('rnd', callback_data='rnd'),
+                 InlineKeyboardButton('rnd_rev', callback_data='rnd_rev')
                  ])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
@@ -688,9 +738,9 @@ async def cb_menu_12(callback: types.CallbackQuery) -> None:
 async def all_msg_handler(message: types.Message):
     print('msg')
     button_text = message.text
-    translator = Translator()
-    translated = translator.translate(button_text)
-    prompt = translated.text
+    #translator = Translator()
+    translated = button_text#translator.translate(button_text)
+    prompt = translated#.text
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, message.from_user.id))
     con.commit()
     print("Record inserted successfully")
@@ -699,5 +749,9 @@ async def all_msg_handler(message: types.Message):
                            reply_markup=get_ikb())
 
 if __name__ == '__main__':
-    executor.start_polling(dp,
-                           skip_updates=True)
+    try:
+        # Start polling for updates
+        # dp.start_polling()
+        executor.start_polling(dp, skip_updates=True)
+    except Exception as e:
+        logging.exception(e)
