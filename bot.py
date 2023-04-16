@@ -211,6 +211,22 @@ def submit_post(url: str, data: dict):
 def submit_get(url: str, data: dict):
     return requests.get(url, data=json.dumps(data))
 
+def get_opt():
+    cur.execute("SELECT prompt, steps, width, height, scale, negative, sampler, model from prompts")
+    rows = cur.fetchall()
+    for row in rows:
+        prompt = row[0]
+        steps = row[1]
+        width = row[2]
+        height = row[3]
+        scale = row[4]
+        negative = row[5].replace('/negative ', '')
+        sampler = row[6]
+        model = row[7]
+        opt = f'prompt = `{prompt}` \n steps = *{steps}* \n width = *{width}* \n height = *{height}* ' \
+              f'\n scale = *{scale}* \n negative = *{negative}* \n sampler = *{sampler}* \n model = *{model}*'
+    return opt
+
 def save_encoded_image(b64_image: str, output_path: str):
     """
     Save the given image to the given output path.
@@ -227,18 +243,18 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
-         #InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')
-         InlineKeyboardButton('get_opt', callback_data='get_opt'),
-         InlineKeyboardButton('random', callback_data='random'),
+         InlineKeyboardButton('get_opt', callback_data='get_opt_f'),
+         InlineKeyboardButton('rndm', callback_data='random'),
          InlineKeyboardButton('rnd', callback_data='rnd'),
          InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
-         InlineKeyboardButton('prompt', callback_data='prompt'),
-         InlineKeyboardButton('option', callback_data='option')],[
+         InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')],[
+         InlineKeyboardButton('prmpt', callback_data='prompt'),
+         InlineKeyboardButton('optn', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
          InlineKeyboardButton('steps', callback_data='steps'),
-         InlineKeyboardButton('samplers', callback_data='samplers'),
-         InlineKeyboardButton('models', callback_data='models')]
+         InlineKeyboardButton('smplrs', callback_data='samplers'),
+         InlineKeyboardButton('mdls', callback_data='models')]
     ])
     return ikb
 
@@ -282,6 +298,29 @@ async def getModels(message: types.Message):
         arr = arr+'title '+item['title']+'\n\n'
     await message.reply(arr, parse_mode=types.ParseMode.HTML)
 
+# цикл по семплерам
+@dp.callback_query_handler(text='rnd_smp')
+async def rnd_smp(callback: types.CallbackQuery) -> None:
+    print('rnd_smp')
+    # вытянуть семплеры
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+    for item in response.json():
+        s = item['name']
+        cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
+        con.commit()
+        data = create_post('gen', '')
+        title = s + '\n/stop \n/opt '
+        with open('dog.png', 'rb') as photo:
+            await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+    # Для вывода итогов в конце тянем промпт и описание из data
+    cur.execute("SELECT prompt from prompts")
+    rows = cur.fetchall()
+    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
+
+
 @dp.callback_query_handler(text='rnd_rev')
 async def rnd_rev(callback: types.CallbackQuery) -> None:
     # повторение rnd
@@ -296,6 +335,7 @@ async def rnd_rev(callback: types.CallbackQuery) -> None:
         arr.append(item['title'])
     arr = list(reversed(arr))
     await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
     # запускаем цикл по списку
     for title in arr:
         #if i < 5:
@@ -333,6 +373,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
     for item in response.json():
         arr.append(item['title'])
     await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
     # запускаем цикл по списку
     for title in arr:
         #if i < 5:
@@ -357,29 +398,16 @@ async def rnd(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
 # Получить все последнии опции с БД текстом
-@dp.callback_query_handler(text='get_opt')
-async def get_opt(callback: types.CallbackQuery) -> None:
-    cur.execute("SELECT prompt, steps, width, height, scale, negative, sampler, model from prompts")
-    rows = cur.fetchall()
-    for row in rows:
-        prompt = row[0]
-        steps = row[1]
-        width = row[2]
-        height = row[3]
-        scale = row[4]
-        negative = row[5].replace('/negative ', '')
-        sampler = row[6]
-        model = row[7]
-        opt = f'prompt = `{prompt}` \n steps = *{steps}* \n width = *{width}* \n height = *{height}* ' \
-              f'\n scale = *{scale}* \n negative = *{negative}* \n sampler = *{sampler}* \n model = *{model}*'
-    await bot.send_message(chat_id=callback.from_user.id, text=opt, reply_markup=get_ikb(), parse_mode='Markdown')
+@dp.callback_query_handler(text='get_opt_f')
+async def get_opt_f(callback: types.CallbackQuery) -> None:
+    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), reply_markup=get_ikb(), parse_mode='Markdown')
 
 # генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
 @dp.callback_query_handler(text='prompt')
 async def prompt(callback: types.CallbackQuery) -> None:
     cur.execute("SELECT prompt from prompts")
     input_ids = tokenizer(cur.fetchall()[0], return_tensors='pt').input_ids
-    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=100, num_return_sequences=1,
+    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
                             repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
     prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
     await bot.send_message(chat_id=callback.from_user.id, text=prompt)
@@ -631,7 +659,8 @@ def get_models() -> InlineKeyboardMarkup:
                  InlineKeyboardButton('gen4', callback_data='gen4'),
                  InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
                  InlineKeyboardButton('rnd', callback_data='rnd'),
-                 InlineKeyboardButton('rnd_rev', callback_data='rnd_rev')
+                 InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
+                 InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')
                  ])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
