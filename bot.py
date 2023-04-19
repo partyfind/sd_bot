@@ -125,28 +125,17 @@ def create_post(type: str, hr: str):
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
     rows = cur.fetchall()
     for row in rows:
-        if type == 'min':
-            steps = 20
-            width = 256
-            height = 256
-            cfg_scale = 7
-        elif type == 'max':
-            steps = 100
-            width = 1024
-            height = 1024
-            cfg_scale = 15
-        else:
-            steps = row[1]
-            width = row[2]
-            height = row[3]
-            cfg_scale = row[4]
+        steps = row[1]
+        width = row[2]
+        height = row[3]
+        cfg_scale = row[4]
         prompt = row[0]
         # добавляем промпту префикс модельки
         prompt = cut_prompt(row[5], prompt)
         print(prompt)
         #prompt = '```'+prompt+'```'
         count = 1
-        if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
+        if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
             count = 4
 
         if hr == 'hr' or hr == 'hr4':
@@ -198,7 +187,7 @@ def create_post(type: str, hr: str):
     response = submit_post(txt2img_url, data)
     #print(response.json())
     save_encoded_image(response.json()['images'][0], 'dog.png')
-    if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
+    if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
         save_encoded_image(response.json()['images'][1], 'dog2.png')
         save_encoded_image(response.json()['images'][2], 'dog3.png')
         save_encoded_image(response.json()['images'][3], 'dog4.png')
@@ -236,16 +225,16 @@ def save_encoded_image(b64_image: str, output_path: str):
 
 def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('min', callback_data='min'),
-         InlineKeyboardButton('max', callback_data='max')],
         [InlineKeyboardButton('start SD'+sd, callback_data='strt'),
          InlineKeyboardButton('stop SD', callback_data='stp')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')],[
          InlineKeyboardButton('get_opt', callback_data='get_opt_f'),
          InlineKeyboardButton('rndm', callback_data='random'),
          InlineKeyboardButton('rnd', callback_data='rnd'),
+         InlineKeyboardButton('rnd_hr', callback_data='rnd_hr'),
          InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
          InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')],[
          InlineKeyboardButton('prmpt', callback_data='prompt'),
@@ -397,6 +386,50 @@ async def rnd(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
     await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
+
+@dp.callback_query_handler(text='rnd_hr')
+async def rnd_hr(callback: types.CallbackQuery) -> None:
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = []
+    #i = 0
+    # заполняем актуальный массив моделей в arr
+    for item in response.json():
+        arr.append(item['title'])
+    await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
+    # запускаем цикл по списку
+    for title in arr:
+        #if i < 5:
+        # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
+        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+        con.commit()
+        # меняем модель в памяти
+        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
+        time.sleep(5)
+        data = create_post('gen', 'hr')
+        title = title + '\n/stop \n/opt '
+        # пока не через media
+        with open('dog.png', 'rb') as photo:
+            #await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+            print('417 photo')
+
+
+            #await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+            #await bot.send_message(chat_id=callback.from_user.id, text='проверка', parse_mode='Markdown')
+            await bot.send_document(callback.from_user.id, photo, caption=title)
+            #TODO photo + title
+            #i += 1
+    # Для вывода итогов в конце тянем промпт и описание из data
+    cur.execute("SELECT prompt from prompts")
+    rows = cur.fetchall()
+    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
+
 # Получить все последнии опции с БД текстом
 @dp.callback_query_handler(text='get_opt_f')
 async def get_opt_f(callback: types.CallbackQuery) -> None:
@@ -483,29 +516,6 @@ async def randomCall(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
     await bot.send_message(chat_id=callback.from_user.id, text=prompt)
 
-@dp.callback_query_handler(text='min')
-async def cb_menu_1(callback: types.CallbackQuery) -> None:
-    data = create_post('min', '')
-    media = types.MediaGroup()
-    media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
-    media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
-    media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
-    media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
-    await callback.message.delete()
-    await bot.send_media_group(callback.message.chat.id, media=media)
-    await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
-
-
-@dp.callback_query_handler(text='max')
-async def cb_menu_2(callback: types.CallbackQuery) -> None:
-    data = create_post('max', '')
-    print(147)
-    #print(data)
-    with open('dog.png', 'rb') as photo:
-        await callback.message.delete()
-        await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
-        await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
-
 
 @dp.callback_query_handler(text='gen')
 async def cb_menu_3(callback: types.CallbackQuery) -> None:
@@ -532,7 +542,7 @@ async def cb_menu_5(callback: types.CallbackQuery) -> None:
     data = create_post('gen', 'hr4')
     #media = types.MediaGroup()
     with open('dog.png', 'rb') as photo:
-        await callback.message.delete()
+        #await callback.message.delete()
         await bot.send_document(callback.from_user.id, photo)
     with open('dog2.png', 'rb') as photo:
         await bot.send_document(callback.from_user.id, photo)
@@ -657,8 +667,10 @@ def get_models() -> InlineKeyboardMarkup:
         arr2.append(arr)
     arr2.append([InlineKeyboardButton('gen', callback_data='gen'),
                  InlineKeyboardButton('gen4', callback_data='gen4'),
-                 InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-                 InlineKeyboardButton('rnd', callback_data='rnd'),
+                 InlineKeyboardButton('gen_hr', callback_data='gen_hr')
+                 ])
+    arr2.append([InlineKeyboardButton('rnd', callback_data='rnd'),
+                 InlineKeyboardButton('rnd_hr', callback_data='rnd_hr'),
                  InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
                  InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')
                  ])
