@@ -4,7 +4,6 @@ import base64
 import requests
 import time
 import subprocess
-#from googletrans import Translator
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -13,6 +12,7 @@ from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 import random
 import logging
+from langdetect import detect
 
 con = psycopg2.connect(
   database="postgres",
@@ -54,6 +54,16 @@ def stop_sd():
         process.terminate()
         process = None
 
+def get_random_prompt():
+    arr = []
+    with open('random.json', encoding='utf-8') as json_file:
+        data = json.load(json_file)
+        for i in data['messages']:
+            if i['text'] != '':
+                arr.append(i['text'])
+    n = random.randint(0, len(arr) - 1)
+    return arr[n]
+
 @dp.callback_query_handler(text='strt')
 async def strt(callback: types.CallbackQuery) -> None:
     global sd
@@ -89,34 +99,22 @@ async def stp(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
-  arrNitro = ['archer', 'arcane', 'modern disney']
-  nitroNum = random.randint(0, len(arrNitro)-1)
-  if model.find('Inkpunk') != -1:
-    prompt = 'nvinkpunk ' + prompt
-  elif model.find('redshift') != -1:
-    prompt = 'redshift style ' + prompt
-  elif model.find('robo-diffusion') != -1:
-    prompt = 'nousr robot ' + prompt
-  elif model.find('openjourneyAka_v1') != -1:
-    prompt = 'mdjrny-v4 style ' + prompt
-  elif model.find('ghibli') != -1:
-    prompt = 'ghibli style ' + prompt
-  elif model.find('future') != -1:
-    prompt = 'future style ' + prompt
+  if model.find('synthwavepunk_v2') != -1:
+    prompt = 'snthwve style ' + prompt
+  elif model.find('Realistic_Vision_V2.0') != -1:
+    prompt = 'analog style ' + prompt
+  elif model.find('protogenX34Photorealism_1') != -1:
+    prompt = 'analog style ' + prompt
+  elif model.find('protogenX58RebuiltScifi_10') != -1:
+    prompt = 'modelshoot style ' + prompt
   elif model.find('cuteRichstyle15_cuteRichstyle') != -1:
     prompt = 'cbzbb style ' + prompt
-  elif model.find('synthwavepunk') != -1:
-    prompt = 'NVINKPUNK ' + prompt
-  elif model.find('realisticVision') != -1:
-    prompt = 'ANALOG STYLE ' + prompt
-  elif model.find('KhrushchevkaDiffusion') != -1:
-    prompt = 'khrushchevka ' + prompt
   elif model.find('kenshi') != -1:
     prompt = 'semi-realistic ' + prompt
-  elif model.find('hrl31') != -1:
+  elif model.find('fkingScifiV2_v21f') != -1:
+    prompt = 'fking_scifi_v2 ' + prompt
+  elif model.find('hrl32_hrl32') != -1:
     prompt = 'PHOTOREALISM ' + prompt
-  elif model.find('nitroDiffusion') != -1:
-    prompt = arrNitro[nitroNum] + ' style ' + prompt
   return prompt
 
 def create_post(type: str, hr: str):
@@ -150,7 +148,7 @@ def create_post(type: str, hr: str):
                 'sampler_index': row[7],
                 'batch_size': count,
                 'enable_hr': 'true',
-                'denoising_strength': 0.7,
+                'denoising_strength': 0.5,
                 'firstphase_width': 0,
                 'firstphase_height': 0,
                 'hr_scale': 2,
@@ -447,25 +445,15 @@ async def prompt(callback: types.CallbackQuery) -> None:
 
 @dp.callback_query_handler(text='random')
 async def randomCall(callback: types.CallbackQuery) -> None:
-    arr = []
-    with open('random.json', encoding='utf-8') as json_file:
-        data = json.load(json_file)
-        for i in data['messages']:
-            if i['text'] != '':
-                arr.append(i['text'])
-    n = random.randint(0, len(arr) - 1)
-    #translator = Translator()
-    #translated = translator.translate(arr[n])
-    prompt = arr[n]#translated.text
+    prompt = get_random_prompt()
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
-    scale = random.randint(1, 20)
+    scale = random.randint(5, 15)
     cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
     con.commit()
 
-    steps = random.randint(20, 60)
-    #steps = 20
+    steps = random.randint(15, 60)
     cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
     con.commit()
 
@@ -486,10 +474,7 @@ async def randomCall(callback: types.CallbackQuery) -> None:
 
     # промпты
     n = random.randint(0, len(arr)-1)
-    #translator = Translator()
-    #txt = data['messages'][n]['text']
-    translated = data['messages'][n]['text']#translator.translate(txt)
-    prompt = translated#.text
+    prompt = data['messages'][n]['text']
     cut_prompt(arr[model], prompt)
     print(prompt)
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
@@ -778,16 +763,13 @@ async def cb_menu_12(callback: types.CallbackQuery) -> None:
 @dp.message_handler()
 async def all_msg_handler(message: types.Message):
     print('msg')
-    button_text = message.text
-    #translator = Translator()
-    translated = button_text#translator.translate(button_text)
-    prompt = translated#.text
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, message.from_user.id))
-    con.commit()
-    print("Record inserted successfully")
-    await bot.send_message(chat_id=message.from_user.id,
-                           text='Выбираем',
-                           reply_markup=get_ikb())
+    if detect(message.text) == 'ru':
+        await bot.send_message(chat_id=message.from_user.id, text='Введите на английском', reply_markup=types.ReplyKeyboardRemove())
+    else:
+        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (message.text, message.from_user.id))
+        con.commit()
+        print("Record inserted successfully")
+        await bot.send_message(chat_id=message.from_user.id, text='Выбираем', reply_markup=get_ikb())
 
 if __name__ == '__main__':
     try:
