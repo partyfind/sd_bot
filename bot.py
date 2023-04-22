@@ -252,17 +252,27 @@ async def cmd_status(message: types.Message) -> None:
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', '')
     await bot.send_message(chat_id=message.from_user.id, text=response.json())
 
-# главное меню
+# главное меню /opt
 @dp.message_handler(commands=['opt'])
 async def opt(message: types.Message) -> None:
     await bot.send_message(chat_id=message.from_user.id, text='Опции', reply_markup=get_ikb())
 
+# /stop
 @dp.message_handler(commands=['stop'])
 async def stop(message: types.Message) -> None:
     global sd
     stop_sd()
     sd = '❌'
     await message.reply('SD остановлена', reply_markup=get_ikb())
+
+# /create_post_vk
+@dp.message_handler(commands=['create_post_vk'])
+async def stop(message: types.Message) -> None:
+    result = subprocess.run(
+        ['C:\OSPanel\modules\php\PHP_7.3\php.exe', "C:/OSPanel/domains/localhost/vk/create_post.php"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    output = result.stdout.decode('utf-8')
+    await message.reply(output, reply_markup=types.ReplyKeyboardRemove())
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
