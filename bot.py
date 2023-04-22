@@ -364,34 +364,38 @@ async def rnd(callback: types.CallbackQuery) -> None:
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    cur.execute("SELECT prompt from prompts")
+    promptOld = cur.fetchall()
     arr = []
-    #i = 0
-    # заполняем актуальный массив моделей в arr
-    for item in response.json():
-        arr.append(item['title'])
+    i = 0
     await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
     await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
-    # запускаем цикл по списку
-    for title in arr:
-        #if i < 5:
-        # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
-        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+    for itemTxt in promptOld[0][0].split(';'):
+        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (itemTxt, callback.from_user.id))
         con.commit()
-        # меняем модель в памяти
-        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-        time.sleep(5)
-        data = create_post('gen', '')
-        title = title + '\n/stop \n/opt '
-        # пока не через media
-        with open('dog.png', 'rb') as photo:
-            await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+        # заполняем актуальный массив моделей в arr
+        for item in response.json():
+            #if i < 3:
+            arr.append(item['title'])
             #i += 1
-    # Для вывода итогов в конце тянем промпт и описание из data
-    cur.execute("SELECT prompt from prompts")
-    rows = cur.fetchall()
-    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+        # запускаем цикл по списку
+        for title in arr:
+            # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
+            cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+            con.commit()
+            # меняем модель в памяти
+            submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
+            time.sleep(5)
+            data = create_post('gen', '')
+            title = title + '\n/stop \n/opt '
+            # пока не через media
+            with open('dog.png', 'rb') as photo:
+                await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
+        # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+        await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{itemTxt}`', parse_mode='Markdown')
+        await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (promptOld, callback.from_user.id))
+    con.commit()
     await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
 
@@ -401,41 +405,37 @@ async def rnd_hr(callback: types.CallbackQuery) -> None:
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    cur.execute("SELECT prompt from prompts")
+    promptOld = cur.fetchall()
     arr = []
-    #i = 0
     # заполняем актуальный массив моделей в arr
     for item in response.json():
         arr.append(item['title'])
     await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
     await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
-    # запускаем цикл по списку
-    for title in arr:
-        #if i < 5:
-        # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
-        cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+    for itemTxt in promptOld[0][0].split(';'):
+        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (itemTxt, callback.from_user.id))
         con.commit()
-        # меняем модель в памяти
-        submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-        time.sleep(5)
-        data = create_post('gen', 'hr')
-        title = title + '\n/stop \n/opt '
-        # пока не через media
-        with open('dog.png', 'rb') as photo:
-            #await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
-            print('417 photo')
-
-
-            #await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
-            #await bot.send_message(chat_id=callback.from_user.id, text='проверка', parse_mode='Markdown')
-            await bot.send_document(callback.from_user.id, photo, caption=title)
-            #TODO photo + title
-            #i += 1
-    # Для вывода итогов в конце тянем промпт и описание из data
-    cur.execute("SELECT prompt from prompts")
-    rows = cur.fetchall()
-    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+        # запускаем цикл по списку
+        for title in arr:
+            #if i < 5:
+            # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
+            cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
+            con.commit()
+            # меняем модель в памяти
+            submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
+            time.sleep(5)
+            data = create_post('gen', 'hr')
+            title = title + '\n/stop \n/opt '
+            # пока не через media
+            with open('dog.png', 'rb') as photo:
+                await bot.send_document(callback.from_user.id, photo, caption=title)
+                #TODO photo + title
+        # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
+        await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{itemTxt}`', parse_mode='Markdown')
+        await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (promptOld, callback.from_user.id))
+    con.commit()
     await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
 # Получить все последнии опции с БД текстом
