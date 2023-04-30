@@ -1,3 +1,5 @@
+#pip install aiogram
+#pip install langdetect
 import psycopg2
 import json
 import base64
@@ -54,15 +56,39 @@ def stop_sd():
         process.terminate()
         process = None
 
-def get_random_prompt():
-    arr = []
-    with open('random.json', encoding='utf-8') as json_file:
-        data = json.load(json_file)
+def get_random_prompt_from_file():
+
+    try:
+        arr = []
         for i in data['messages']:
             if i['text'] != '':
                 arr.append(i['text'])
-    n = random.randint(0, len(arr) - 1)
-    return arr[n]
+
+        with open('random.json', encoding='utf-8') as json_file:
+            data = json.load(json_file)
+            for i in data['messages']:
+                if i['text'] != '':
+                    arr.append(i['text'])
+        n = random.randint(0, len(arr) - 1)
+        txt = arr[n]
+        if detect(txt) == 'ru':
+            txt = get_random_prompt(0)
+    except Exception as e:
+        print(e)
+        txt = get_random_prompt(0)
+    return txt
+
+def get_random_prompt(db = 1):
+    cur.execute("SELECT prompt from prompts")
+    if db == 1:
+        text = cur.fetchall()[0]
+    else:
+        text = ' '
+    input_ids = tokenizer(text, return_tensors='pt').input_ids
+    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
+                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
+    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
+    return prompt
 
 @dp.callback_query_handler(text='strt')
 async def strt(callback: types.CallbackQuery) -> None:
@@ -184,7 +210,11 @@ def create_post(type: str, hr: str):
     #print(len(data))
     response = submit_post(txt2img_url, data)
     #print(response.json())
-    save_encoded_image(response.json()['images'][0], 'dog.png')
+    try:
+        save_encoded_image(response.json()['images'][0], 'dog.png')
+    except Exception as e:
+        print(e)
+        data2 = e
     if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
         save_encoded_image(response.json()['images'][1], 'dog2.png')
         save_encoded_image(response.json()['images'][2], 'dog3.png')
@@ -446,16 +476,12 @@ async def get_opt_f(callback: types.CallbackQuery) -> None:
 # генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
 @dp.callback_query_handler(text='prompt')
 async def prompt(callback: types.CallbackQuery) -> None:
-    cur.execute("SELECT prompt from prompts")
-    input_ids = tokenizer(cur.fetchall()[0], return_tensors='pt').input_ids
-    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
-                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
-    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
-    await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+    await bot.send_message(chat_id=callback.from_user.id, text=get_random_prompt())
+
 
 @dp.callback_query_handler(text='random')
 async def randomCall(callback: types.CallbackQuery) -> None:
-    prompt = get_random_prompt()
+    prompt = get_random_prompt_from_file()
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
     con.commit()
 
@@ -482,9 +508,6 @@ async def randomCall(callback: types.CallbackQuery) -> None:
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
     time.sleep(5)
 
-    # промпты
-    n = random.randint(0, len(arr)-1)
-    prompt = data['messages'][n]['text']
     cut_prompt(arr[model], prompt)
     print(prompt)
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
@@ -607,6 +630,9 @@ def get_size() -> InlineKeyboardMarkup:
 
 def get_scale() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('2', callback_data='scale|2'),
+         InlineKeyboardButton('3', callback_data='scale|3'),
+         InlineKeyboardButton('4',  callback_data='scale|4')],
         [InlineKeyboardButton('5', callback_data='scale|5'),
          InlineKeyboardButton('6', callback_data='scale|6'),
          InlineKeyboardButton('7',  callback_data='scale|7'),
@@ -627,7 +653,8 @@ def get_scale() -> InlineKeyboardMarkup:
 
 def get_steps() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('20',  callback_data='steps|20'),
+        [InlineKeyboardButton('10',  callback_data='steps|10'),
+         InlineKeyboardButton('20',  callback_data='steps|20'),
          InlineKeyboardButton('30',  callback_data='steps|30'),
          InlineKeyboardButton('40',  callback_data='steps|40'),
          InlineKeyboardButton('50',  callback_data='steps|50'),
