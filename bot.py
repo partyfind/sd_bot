@@ -57,7 +57,6 @@ def stop_sd():
         process = None
 
 def get_random_prompt_from_file():
-
     try:
         arr = []
         for i in data['messages']:
@@ -76,6 +75,7 @@ def get_random_prompt_from_file():
     except Exception as e:
         print(e)
         txt = get_random_prompt(0)
+    print(txt)
     return txt
 
 def get_random_prompt(db = 1):
@@ -88,6 +88,7 @@ def get_random_prompt(db = 1):
     txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
                             repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
     prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
+    print(prompt)
     return prompt
 
 @dp.callback_query_handler(text='strt')
@@ -549,9 +550,12 @@ async def cb_menu_3(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen_hr')
     data = create_post('gen', 'hr')
+    cur.execute("SELECT prompt from prompts")
+    text = cur.fetchall()[0]
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
         await bot.send_document(callback.from_user.id, photo)
+        await bot.send_message(chat_id=callback.from_user.id, text=text, reply_markup=types.ReplyKeyboardRemove())
         await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
 
 @dp.callback_query_handler(text='gen_hr4')
