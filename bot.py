@@ -58,21 +58,22 @@ def stop_sd():
 
 def get_random_prompt_from_file():
     try:
+        print('Начало get_random_prompt_from_file')
         arr = []
-        for i in data['messages']:
-            if i['text'] != '':
-                arr.append(i['text'])
-
         with open('random.json', encoding='utf-8') as json_file:
             data = json.load(json_file)
             for i in data['messages']:
                 if i['text'] != '':
                     arr.append(i['text'])
+        print(len(arr))
         n = random.randint(0, len(arr) - 1)
+        print(n)
         txt = arr[n]
+        print(txt)
         if detect(txt) == 'ru':
             txt = get_random_prompt(0)
     except Exception as e:
+        print('Ошибка get_random_prompt_from_file')
         print(e)
         txt = get_random_prompt(0)
     print(txt)
@@ -83,13 +84,58 @@ def get_random_prompt(db = 1):
     if db == 1:
         text = cur.fetchall()[0]
     else:
-        text = ' '
+        arr = ['cat','dog','cyborg','landscape','girl','man']
+        n = random.randint(0, len(arr) - 1)
+        text = arr[n]
     input_ids = tokenizer(text, return_tensors='pt').input_ids
     txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
                             repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
     prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
     print(prompt)
     return prompt
+
+# Проставить случайные значения prompt/scale/steps/model/sampler
+def set_random(u):
+    prompt = get_random_prompt_from_file()
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
+    con.commit()
+
+    scale = random.randint(3, 15)
+    cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, u))
+    con.commit()
+
+    steps = random.randint(15, 60)
+    cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, u))
+    con.commit()
+
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = []
+    for item in response.json():
+        arr.append(item['title'])
+    model = random.randint(1, len(arr)) - 1
+    print(arr[model])
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], u))
+    con.commit()
+    # меняем модель в памяти
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
+    time.sleep(5)
+
+    cut_prompt(arr[model], prompt)
+    print(prompt)
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
+    con.commit()
+
+    # вытянуть семплеры
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+    arr = []
+    for item in response.json():
+        arr.append(item['name'])
+    sampler = random.randint(1, len(arr))-1
+    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], u))
+    con.commit()
 
 @dp.callback_query_handler(text='strt')
 async def strt(callback: types.CallbackQuery) -> None:
@@ -144,7 +190,7 @@ def cut_prompt(model: str, prompt: str):
     prompt = 'PHOTOREALISM ' + prompt
   return prompt
 
-def create_post(type: str, hr: str):
+def create_post(type: str, hr: str, negative: int):
     print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
@@ -158,12 +204,15 @@ def create_post(type: str, hr: str):
         # добавляем промпту префикс модельки
         prompt = cut_prompt(row[5], prompt)
         print(prompt)
-        #prompt = '```'+prompt+'```'
         count = 1
         if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
             count = 4
 
         if hr == 'hr' or hr == 'hr4':
+            if negative == 0:
+                n = ''
+            else:
+                n = row[6]
             data = {
                 'prompt': prompt,
                 'steps':  steps,
@@ -171,7 +220,7 @@ def create_post(type: str, hr: str):
                 'height': height,
                 'cfg_scale': cfg_scale,
                 'model':row[5],
-                'negative_prompt': row[6],
+                'negative_prompt': n,
                 'sampler_index': row[7],
                 'batch_size': count,
                 'enable_hr': 'true',
@@ -185,6 +234,10 @@ def create_post(type: str, hr: str):
                 'hr_resize_y': height*2
             }
         else:
+            if negative == 0:
+                n = ''
+            else:
+                n = row[6]
             data = {
                 'prompt': prompt,
                 'steps':  steps,
@@ -192,11 +245,15 @@ def create_post(type: str, hr: str):
                 'height': height,
                 'cfg_scale': cfg_scale,
                 'model':row[5],
-                'negative_prompt': row[6],
+                'negative_prompt': n,
                 'sampler_index': row[7],
                 'batch_size': count
             }
         # для вывода в телегу
+        if negative == 0:
+            n = ''
+        else:
+            n = row[6]
         data2 = {
             #'prompt': prompt,
             'steps':  steps,
@@ -204,13 +261,10 @@ def create_post(type: str, hr: str):
             'height': height,
             'cfg_scale': cfg_scale,
             'model':row[5],
-            'negative_prompt': row[6],
+            'negative_prompt': n,
             'sampler_index': row[7]
         }
-    #con.close()
-    #print(len(data))
     response = submit_post(txt2img_url, data)
-    #print(response.json())
     try:
         save_encoded_image(response.json()['images'][0], 'dog.png')
     except Exception as e:
@@ -267,6 +321,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
          InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')],[
          InlineKeyboardButton('prmpt', callback_data='prompt'),
+         InlineKeyboardButton('inf', callback_data='inf'),
          InlineKeyboardButton('optn', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
@@ -348,6 +403,23 @@ async def rnd_smp(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
     await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
 
+# бесконечный рандомный цикл HR
+@dp.callback_query_handler(text='inf')
+async def inf(callback: types.CallbackQuery) -> None:
+    # Отсылаем негатив, чтоб не мешался
+    cur.execute("SELECT negative from prompts")
+    await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
+    while True:
+        print("Этот цикл продолжается бесконечно!")
+        set_random(callback.from_user.id)
+        data = create_post('gen', 'hr', 0)
+        cur.execute("SELECT prompt from prompts")
+        prompt = cur.fetchall()[0]
+        with open('dog.png', 'rb') as photo:
+            #await callback.message.delete()
+            await bot.send_document(callback.from_user.id, photo)
+            await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+            await bot.send_message(chat_id=callback.from_user.id, text=data)
 
 @dp.callback_query_handler(text='rnd_rev')
 async def rnd_rev(callback: types.CallbackQuery) -> None:
@@ -482,48 +554,8 @@ async def prompt(callback: types.CallbackQuery) -> None:
 
 @dp.callback_query_handler(text='random')
 async def randomCall(callback: types.CallbackQuery) -> None:
-    prompt = get_random_prompt_from_file()
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
-    con.commit()
-
-    scale = random.randint(5, 15)
-    cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
-    con.commit()
-
-    steps = random.randint(15, 60)
-    cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
-    con.commit()
-
-    # обновить папку с моделями
-    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-    # вытянуть модели
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    arr = []
-    for item in response.json():
-        arr.append(item['title'])
-    model = random.randint(1, len(arr)) - 1
-    print(arr[model])
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
-    con.commit()
-    # меняем модель в памяти
-    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
-    time.sleep(5)
-
-    cut_prompt(arr[model], prompt)
-    print(prompt)
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
-    con.commit()
-
-    # вытянуть семплеры
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
-    arr = []
-    for item in response.json():
-        arr.append(item['name'])
-    sampler = random.randint(1, len(arr))-1
-    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], callback.from_user.id))
-    con.commit()
-
-    print("new prompt")
+    print('random')
+    set_random(callback.from_user.id)
     data = create_post('gen4', '')
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
