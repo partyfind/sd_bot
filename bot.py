@@ -15,6 +15,7 @@ from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeybo
 import random
 import logging
 from langdetect import detect
+from PIL import Image
 
 con = psycopg2.connect(
   database="postgres",
@@ -84,9 +85,10 @@ def get_random_prompt(db = 1):
     if db == 1:
         text = cur.fetchall()[0]
     else:
-        arr = ['cat','dog','cyborg','landscape','girl','man']
-        n = random.randint(0, len(arr) - 1)
-        text = arr[n]
+        #arr = ['cat','dog','cyborg','landscape','girl','man']
+        #n = random.randint(0, len(arr) - 1)
+        # случайный промпт с лексики. TODO добавить проверку на 200
+        text = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
     input_ids = tokenizer(text, return_tensors='pt').input_ids
     txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
                             repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
@@ -95,8 +97,10 @@ def get_random_prompt(db = 1):
     return prompt
 
 # Проставить случайные значения prompt/scale/steps/model/sampler
-def set_random(u):
+def set_random(u, lexica = 0):
     prompt = get_random_prompt_from_file()
+    if lexica == 1:
+        prompt = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
     con.commit()
 
@@ -190,7 +194,7 @@ def cut_prompt(model: str, prompt: str):
     prompt = 'PHOTOREALISM ' + prompt
   return prompt
 
-def create_post(type: str, hr: str, negative: int):
+def create_post(type: str, hr: str, negative = 1):
     print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
@@ -267,6 +271,12 @@ def create_post(type: str, hr: str, negative: int):
     response = submit_post(txt2img_url, data)
     try:
         save_encoded_image(response.json()['images'][0], 'dog.png')
+
+        #делаем уменьшенную версию картинки
+        image = Image.open("dog.png")
+        new_size = (image.width // 4, image.height // 4)
+        resized_image = image.resize(new_size)
+        resized_image.save("little_dog.png")
     except Exception as e:
         print(e)
         data2 = e
@@ -321,7 +331,9 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
          InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')],[
          InlineKeyboardButton('prmpt', callback_data='prompt'),
+         InlineKeyboardButton('prmpt_lxc', callback_data='prompt_lexica'),
          InlineKeyboardButton('inf', callback_data='inf'),
+         InlineKeyboardButton('inf_lxc', callback_data='inf_lexica'),
          InlineKeyboardButton('optn', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
@@ -415,8 +427,28 @@ async def inf(callback: types.CallbackQuery) -> None:
         data = create_post('gen', 'hr', 0)
         cur.execute("SELECT prompt from prompts")
         prompt = cur.fetchall()[0]
+        with open('little_dog.png', 'rb') as photo:
+            await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
         with open('dog.png', 'rb') as photo:
-            #await callback.message.delete()
+            await bot.send_document(callback.from_user.id, photo)
+            await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+            await bot.send_message(chat_id=callback.from_user.id, text=data)
+
+# бесконечный рандомный цикл HR с промптами из Лексики. TODO объединить с inf
+@dp.callback_query_handler(text='inf_lexica')
+async def inf_lexica(callback: types.CallbackQuery) -> None:
+    # Отсылаем негатив, чтоб не мешался
+    cur.execute("SELECT negative from prompts")
+    await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
+    while True:
+        print("Этот цикл продолжается бесконечно!")
+        set_random(callback.from_user.id, 1)
+        data = create_post('gen', 'hr', 0)
+        cur.execute("SELECT prompt from prompts")
+        prompt = cur.fetchall()[0]
+        with open('little_dog.png', 'rb') as photo:
+            await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
+        with open('dog.png', 'rb') as photo:
             await bot.send_document(callback.from_user.id, photo)
             await bot.send_message(chat_id=callback.from_user.id, text=prompt)
             await bot.send_message(chat_id=callback.from_user.id, text=data)
@@ -531,6 +563,8 @@ async def rnd_hr(callback: types.CallbackQuery) -> None:
             data = create_post('gen', 'hr')
             title = title + '\n/stop \n/opt '
             # пока не через media
+            with open('little_dog.png', 'rb') as photo:
+                await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
             with open('dog.png', 'rb') as photo:
                 await bot.send_document(callback.from_user.id, photo, caption=title)
                 #TODO photo + title
@@ -550,6 +584,12 @@ async def get_opt_f(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text='prompt')
 async def prompt(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text=get_random_prompt())
+
+# https://lexica.art/api/v1/search?q=apples
+@dp.callback_query_handler(text='prompt_lexica')
+async def prompt_lexica(callback: types.CallbackQuery) -> None:
+    prompt_lexica = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
+    await bot.send_message(chat_id=callback.from_user.id, text=prompt_lexica)
 
 
 @dp.callback_query_handler(text='random')
@@ -584,6 +624,8 @@ async def cb_menu_1(callback: types.CallbackQuery) -> None:
     data = create_post('gen', 'hr')
     cur.execute("SELECT prompt from prompts")
     text = cur.fetchall()[0]
+    with open('little_dog.png', 'rb') as photo:
+        await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
         await bot.send_document(callback.from_user.id, photo)
