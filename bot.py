@@ -44,6 +44,10 @@ dp.register_errors_handler(on_error)
 process = None
 sd = '❌'
 
+def rnd_prmt():
+    return random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
+
+
 def start_sd():
     global process
     if not process:
@@ -100,7 +104,14 @@ def get_random_prompt(db = 1):
 def set_random(u, lexica = 0):
     prompt = get_random_prompt_from_file()
     if lexica == 1:
-        prompt = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
+        prompt = rnd_prmt()
+        if "putin" in prompt:
+            prompt = rnd_prmt()
+        else:
+            arr = ['cat','dog','cyborg','landscape','girl','man']
+            n = random.randint(0, len(arr) - 1)
+            prompt = arr[n]
+
     cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
     con.commit()
 
@@ -588,7 +599,14 @@ async def prompt(callback: types.CallbackQuery) -> None:
 # https://lexica.art/api/v1/search?q=apples
 @dp.callback_query_handler(text='prompt_lexica')
 async def prompt_lexica(callback: types.CallbackQuery) -> None:
-    prompt_lexica = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
+    prompt_lexica = rnd_prmt()
+
+    if "putin" in prompt_lexica:
+        prompt_lexica = rnd_prmt()
+    else:
+        arr = ['cat','dog','cyborg','landscape','girl','man']
+        n = random.randint(0, len(arr) - 1)
+        prompt_lexica = arr[n]
     await bot.send_message(chat_id=callback.from_user.id, text=prompt_lexica)
 
 
