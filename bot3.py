@@ -14,8 +14,12 @@ from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 import random
 import logging
+import datetime
 from langdetect import detect
 from PIL import Image
+# https://vk-api.readthedocs.io/en/latest/upload.html
+import vk_api
+from vk_api import VkUpload
 
 con = psycopg2.connect(
   database="postgres",
@@ -24,6 +28,16 @@ con = psycopg2.connect(
   host="localhost",
   port="5432"
 )
+
+# настройки VK API
+# https://oauth.vk.com/authorize?client_id=51626357&scope=photos&redirect_uri=http%3A%2F%2Foauth.vk.com%2Fblank.html&display=page&response_type=token
+access_token = 'vk1.a.A2s4Nzy-vu0wIbDPpvkRbP5VUNHpGh5PvZgaIAP6vcZAdLgm92842Ak9vHaUKibNDUu2WRBXkOwZia9pT1i6i1ikhaY-xATR7tjZou90StnwnPKFMpGA66mvUphZ_tjTsKiPgDJbxtX4FHx7H6GnxMrrmbzz66ySP9Xfyupcjgjy-YZLYXchWC1RMY2Uv6x5'
+album_id = '287599600'
+vk_session = vk_api.VkApi(token=access_token)
+vk_upload = VkUpload(vk_session)
+
+# путь для картинок
+way = 'outputs/mishgen/'
 
 print("Database opened successfully")
 cur = con.cursor()
@@ -125,7 +139,7 @@ def set_random(u, lexica = 0):
     con.commit()
     # меняем модель в памяти
     submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
-    time.sleep(10)
+    time.sleep(5)
 
     cut_prompt(arr[model], prompt)
     print(prompt)
@@ -208,6 +222,11 @@ def create_post(type: str, hr: str, negative = 1):
         # добавляем промпту префикс модельки
         prompt = cut_prompt(row[5], prompt)
         print(prompt)
+
+        seed = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3]
+        cur.execute("UPDATE prompts set seed = "+seed)
+        con.commit()
+
         count = 1
         if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
             count = 4
@@ -235,7 +254,8 @@ def create_post(type: str, hr: str, negative = 1):
                 'hr_upscaler': 'R-ESRGAN 4x+',
                 'hr_second_pass_steps': 15,
                 'hr_resize_x': width*2,
-                'hr_resize_y': height*2
+                'hr_resize_y': height*2,
+                'seed': seed
             }
         else:
             if negative == 0:
@@ -251,7 +271,8 @@ def create_post(type: str, hr: str, negative = 1):
                 'model':row[5],
                 'negative_prompt': n,
                 'sampler_index': row[7],
-                'batch_size': count
+                'batch_size': count,
+                'seed': seed
             }
         # для вывода в телегу
         if negative == 0:
@@ -266,17 +287,19 @@ def create_post(type: str, hr: str, negative = 1):
             'cfg_scale': cfg_scale,
             'model':row[5],
             'negative_prompt': n,
-            'sampler_index': row[7]
+            'sampler_index': row[7],
+            'seed': seed
         }
     response = submit_post(txt2img_url, data)
     try:
-        save_encoded_image(response.json()['images'][0], 'dog.png')
+        way2 = way+seed
+        save_encoded_image(response.json()['images'][0], way2+'.png')
 
         #делаем уменьшенную версию картинки
-        image = Image.open("dog.png")
+        image = Image.open(way2+'.png')
         new_size = (image.width // 4, image.height // 4)
         resized_image = image.resize(new_size)
-        resized_image.save("little_dog.png")
+        resized_image.save(way2+'_temp.png')
     except Exception as e:
         print(e)
         data2 = e
@@ -339,7 +362,8 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('scale', callback_data='scale'),
          InlineKeyboardButton('steps', callback_data='steps'),
          InlineKeyboardButton('smplrs', callback_data='samplers'),
-         InlineKeyboardButton('mdls', callback_data='models')]
+         InlineKeyboardButton('mdls', callback_data='models')],[
+         InlineKeyboardButton('vk', callback_data='vk')]
     ])
     return ikb
 
@@ -354,6 +378,16 @@ async def cmd_status(message: types.Message) -> None:
 @dp.message_handler(commands=['opt'])
 async def opt(message: types.Message) -> None:
     await bot.send_message(chat_id=message.from_user.id, text='Опции', reply_markup=get_ikb())
+
+# Загрузка фото в ВК
+@dp.message_handler(commands=['vk'])
+async def opt(message: types.Message) -> None:
+    vk_upload.photo(
+        photos='dog.png',
+        album_id=album_id,
+        caption='проверка'
+    )
+    await bot.send_message(chat_id=message.from_user.id, text='Готово')
 
 # /stop
 @dp.message_handler(commands=['stop'])
@@ -399,17 +433,17 @@ async def rnd_smp(callback: types.CallbackQuery) -> None:
     print('rnd_smp')
     # вытянуть семплеры
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+    cur.execute("SELECT prompt, seed from prompts")
+    rows = cur.fetchall()
     for item in response.json():
         s = item['name']
         cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
         con.commit()
         data = create_post('gen', '')
         title = s + '\n/stop \n/opt '
-        with open('dog.png', 'rb') as photo:
+        with open(way+rows[1]+'.png', 'rb') as photo:
             await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
-    # Для вывода итогов в конце тянем промпт и описание из data
-    cur.execute("SELECT prompt from prompts")
-    rows = cur.fetchall()
+    # Для вывода итогов в конце тянем промпт rows[0] и описание из data
     # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
     await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
     await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
@@ -419,17 +453,19 @@ async def rnd_smp(callback: types.CallbackQuery) -> None:
 @dp.callback_query_handler(text='inf')
 async def inf(callback: types.CallbackQuery) -> None:
     # Отсылаем негатив, чтоб не мешался
-    cur.execute("SELECT negative from prompts")
-    await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
+    cur.execute("SELECT prompt,seed,negative from prompts")
+    rows = cur.fetchall()
+    prompt = rows[0]
+    seed = rows[1]
+    negative = rows[2]
+    await bot.send_message(chat_id=callback.from_user.id, text=negative)
     while True:
         print("Этот цикл продолжается бесконечно!")
         set_random(callback.from_user.id)
         data = create_post('gen', 'hr', 0)
-        cur.execute("SELECT prompt from prompts")
-        prompt = cur.fetchall()[0]
-        with open('little_dog.png', 'rb') as photo:
+        with open(way+seed+'_temp.png', 'rb') as photo:
             await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
-        with open('dog.png', 'rb') as photo:
+        with open(way+seed+'.png', 'rb') as photo:
             await bot.send_document(callback.from_user.id, photo)
             await bot.send_message(chat_id=callback.from_user.id, text=prompt)
             await bot.send_message(chat_id=callback.from_user.id, text=data)
@@ -476,7 +512,7 @@ async def rnd_rev(callback: types.CallbackQuery) -> None:
         con.commit()
         # меняем модель в памяти
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-        time.sleep(10)
+        time.sleep(5)
         data = create_post('gen', '')
         title = title + '\n/stop \n/opt '
         # пока не через media
@@ -520,7 +556,7 @@ async def rnd(callback: types.CallbackQuery) -> None:
             con.commit()
             # меняем модель в памяти
             submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-            time.sleep(10)
+            time.sleep(5)
             data = create_post('gen', '')
             title = title + '\n/stop \n/opt '
             # пока не через media
@@ -559,7 +595,7 @@ async def rnd_hr(callback: types.CallbackQuery) -> None:
             con.commit()
             # меняем модель в памяти
             submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-            time.sleep(10)
+            time.sleep(5)
             data = create_post('gen', 'hr')
             title = title + '\n/stop \n/opt '
             # пока не через media

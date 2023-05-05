@@ -1,11 +1,10 @@
-#pip install aiogram
-#pip install langdetect
 import psycopg2
 import json
 import base64
 import requests
 import time
 import subprocess
+from googletrans import Translator
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -13,9 +12,6 @@ model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 import random
-import logging
-from langdetect import detect
-from PIL import Image
 
 con = psycopg2.connect(
   database="postgres",
@@ -28,18 +24,8 @@ con = psycopg2.connect(
 print("Database opened successfully")
 cur = con.cursor()
 
-bot = Bot('5815882861:AAHVGTfEfozTaU0yRHJEEaYv7gSi4Ag_WBw')
+bot = Bot('ТУТА ТОКЕН')
 dp = Dispatcher(bot)
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-
-# Error handling
-async def on_error(update, exception):
-    logging.error(f'Update {update} caused {exception}')
-
-# Register error handling
-dp.register_errors_handler(on_error)
 
 process = None
 sd = '❌'
@@ -56,90 +42,6 @@ def stop_sd():
         print('stop_process stop_sd')
         process.terminate()
         process = None
-
-def get_random_prompt_from_file():
-    try:
-        print('Начало get_random_prompt_from_file')
-        arr = []
-        with open('random.json', encoding='utf-8') as json_file:
-            data = json.load(json_file)
-            for i in data['messages']:
-                if i['text'] != '':
-                    arr.append(i['text'])
-        print(len(arr))
-        n = random.randint(0, len(arr) - 1)
-        print(n)
-        txt = arr[n]
-        print(txt)
-        if detect(txt) == 'ru':
-            txt = get_random_prompt(0)
-    except Exception as e:
-        print('Ошибка get_random_prompt_from_file')
-        print(e)
-        txt = get_random_prompt(0)
-    print(txt)
-    return txt
-
-def get_random_prompt(db = 1):
-    cur.execute("SELECT prompt from prompts")
-    if db == 1:
-        text = cur.fetchall()[0]
-    else:
-        #arr = ['cat','dog','cyborg','landscape','girl','man']
-        #n = random.randint(0, len(arr) - 1)
-        # случайный промпт с лексики. TODO добавить проверку на 200
-        text = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
-    input_ids = tokenizer(text, return_tensors='pt').input_ids
-    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
-                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
-    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
-    print(prompt)
-    return prompt
-
-# Проставить случайные значения prompt/scale/steps/model/sampler
-def set_random(u, lexica = 0):
-    prompt = get_random_prompt_from_file()
-    if lexica == 1:
-        prompt = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
-    con.commit()
-
-    scale = random.randint(3, 15)
-    cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, u))
-    con.commit()
-
-    steps = random.randint(15, 60)
-    cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, u))
-    con.commit()
-
-    # обновить папку с моделями
-    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-    # вытянуть модели
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    arr = []
-    for item in response.json():
-        arr.append(item['title'])
-    model = random.randint(1, len(arr)) - 1
-    print(arr[model])
-    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], u))
-    con.commit()
-    # меняем модель в памяти
-    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
-    time.sleep(10)
-
-    cut_prompt(arr[model], prompt)
-    print(prompt)
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, u))
-    con.commit()
-
-    # вытянуть семплеры
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
-    arr = []
-    for item in response.json():
-        arr.append(item['name'])
-    sampler = random.randint(1, len(arr))-1
-    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], u))
-    con.commit()
 
 @dp.callback_query_handler(text='strt')
 async def strt(callback: types.CallbackQuery) -> None:
@@ -176,47 +78,71 @@ async def stp(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text('SD остановлена', reply_markup=get_ikb())
 
 def cut_prompt(model: str, prompt: str):
-  if model.find('synthwavepunk_v2') != -1:
-    prompt = 'snthwve style ' + prompt
-  elif model.find('Realistic_Vision_V2.0') != -1:
-    prompt = 'analog style ' + prompt
-  elif model.find('protogenX34Photorealism_1') != -1:
-    prompt = 'analog style ' + prompt
-  elif model.find('protogenX58RebuiltScifi_10') != -1:
-    prompt = 'modelshoot style ' + prompt
+  arrComic = ['charliebo', 'holliemengert', 'marioalberti', 'pepelarraz', 'andreasrocha', 'jamesdaly']
+  arrNitro = ['archer', 'arcane', 'modern disney']
+  comicNum = random.randint(0, len(arrComic)-1)
+  nitroNum = random.randint(0, len(arrNitro)-1)
+  if model.find('Inkpunk') != -1:
+    prompt = 'nvinkpunk ' + prompt
+  elif model.find('redshift') != -1:
+    prompt = 'redshift style ' + prompt
+  elif model.find('robo-diffusion') != -1:
+    prompt = 'nousr robot ' + prompt
+  elif model.find('openjourneyAka_v1') != -1:
+    prompt = 'mdjrny-v4 style ' + prompt
+  elif model.find('ghibli') != -1:
+    prompt = 'ghibli style ' + prompt
+  elif model.find('future') != -1:
+    prompt = 'future style ' + prompt
   elif model.find('cuteRichstyle15_cuteRichstyle') != -1:
     prompt = 'cbzbb style ' + prompt
+  elif model.find('synthwavepunk') != -1:
+    prompt = 'NVINKPUNK ' + prompt
+  elif model.find('realisticVision') != -1:
+    prompt = 'ANALOG STYLE ' + prompt
+  elif model.find('KhrushchevkaDiffusion') != -1:
+    prompt = 'khrushchevka ' + prompt
   elif model.find('kenshi') != -1:
     prompt = 'semi-realistic ' + prompt
-  elif model.find('fkingScifiV2_v21f') != -1:
-    prompt = 'fking_scifi_v2 ' + prompt
-  elif model.find('hrl32_hrl32') != -1:
+  elif model.find('hrl31') != -1:
     prompt = 'PHOTOREALISM ' + prompt
+  elif model.find('nitroDiffusion') != -1:
+    prompt = arrNitro[nitroNum] + ' style ' + prompt
+  elif model.find('comic-diffusion') != -1:
+    prompt = arrComic[comicNum] + ' artstyle ' + prompt
   return prompt
 
-def create_post(type: str, hr: str, negative = 1):
+def create_post(type: str, hr: str):
     print('create_post')
     txt2img_url = 'http://127.0.0.1:7861/sdapi/v1/txt2img'
     cur.execute("SELECT prompt, steps, width, height, scale, model, negative, sampler from prompts")
     rows = cur.fetchall()
     for row in rows:
-        steps = row[1]
-        width = row[2]
-        height = row[3]
-        cfg_scale = row[4]
+        if type == 'min':
+            steps = 20
+            width = 256
+            height = 256
+            cfg_scale = 7
+        elif type == 'max':
+            steps = 100
+            width = 1024
+            height = 1024
+            cfg_scale = 15
+        else:
+            steps = row[1]
+            width = row[2]
+            height = row[3]
+            cfg_scale = row[4]
         prompt = row[0]
         # добавляем промпту префикс модельки
         prompt = cut_prompt(row[5], prompt)
         print(prompt)
+        #prompt = '```'+prompt+'```'
         count = 1
-        if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
+        if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
             count = 4
 
         if hr == 'hr' or hr == 'hr4':
-            if negative == 0:
-                n = ''
-            else:
-                n = row[6]
             data = {
                 'prompt': prompt,
                 'steps':  steps,
@@ -224,24 +150,20 @@ def create_post(type: str, hr: str, negative = 1):
                 'height': height,
                 'cfg_scale': cfg_scale,
                 'model':row[5],
-                'negative_prompt': n,
+                'negative_prompt': row[6],
                 'sampler_index': row[7],
                 'batch_size': count,
                 'enable_hr': 'true',
-                'denoising_strength': 0.5,
+                'denoising_strength': 0.7,
                 'firstphase_width': 0,
                 'firstphase_height': 0,
                 'hr_scale': 2,
                 'hr_upscaler': 'R-ESRGAN 4x+',
-                'hr_second_pass_steps': 15,
-                'hr_resize_x': width*2,
-                'hr_resize_y': height*2
+                'hr_second_pass_steps': 0,
+                'hr_resize_x': 0,
+                'hr_resize_y': 0
             }
         else:
-            if negative == 0:
-                n = ''
-            else:
-                n = row[6]
             data = {
                 'prompt': prompt,
                 'steps':  steps,
@@ -249,15 +171,11 @@ def create_post(type: str, hr: str, negative = 1):
                 'height': height,
                 'cfg_scale': cfg_scale,
                 'model':row[5],
-                'negative_prompt': n,
+                'negative_prompt': row[6],
                 'sampler_index': row[7],
                 'batch_size': count
             }
         # для вывода в телегу
-        if negative == 0:
-            n = ''
-        else:
-            n = row[6]
         data2 = {
             #'prompt': prompt,
             'steps':  steps,
@@ -265,22 +183,15 @@ def create_post(type: str, hr: str, negative = 1):
             'height': height,
             'cfg_scale': cfg_scale,
             'model':row[5],
-            'negative_prompt': n,
+            'negative_prompt': row[6],
             'sampler_index': row[7]
         }
+    #con.close()
+    #print(len(data))
     response = submit_post(txt2img_url, data)
-    try:
-        save_encoded_image(response.json()['images'][0], 'dog.png')
-
-        #делаем уменьшенную версию картинки
-        image = Image.open("dog.png")
-        new_size = (image.width // 4, image.height // 4)
-        resized_image = image.resize(new_size)
-        resized_image.save("little_dog.png")
-    except Exception as e:
-        print(e)
-        data2 = e
-    if type == 'gen4' or (type == 'gen' and hr == 'hr4'):
+    #print(response.json())
+    save_encoded_image(response.json()['images'][0], 'dog.png')
+    if type == 'gen4' or type == 'min' or (type == 'gen' and hr == 'hr4'):
         save_encoded_image(response.json()['images'][1], 'dog2.png')
         save_encoded_image(response.json()['images'][2], 'dog3.png')
         save_encoded_image(response.json()['images'][3], 'dog4.png')
@@ -293,22 +204,6 @@ def submit_post(url: str, data: dict):
 def submit_get(url: str, data: dict):
     return requests.get(url, data=json.dumps(data))
 
-def get_opt():
-    cur.execute("SELECT prompt, steps, width, height, scale, negative, sampler, model from prompts")
-    rows = cur.fetchall()
-    for row in rows:
-        prompt = row[0]
-        steps = row[1]
-        width = row[2]
-        height = row[3]
-        scale = row[4]
-        negative = row[5].replace('/negative ', '')
-        sampler = row[6]
-        model = row[7]
-        opt = f'prompt = `{prompt}` \n steps = *{steps}* \n width = *{width}* \n height = *{height}* ' \
-              f'\n scale = *{scale}* \n negative = *{negative}* \n sampler = *{sampler}* \n model = *{model}*'
-    return opt
-
 def save_encoded_image(b64_image: str, output_path: str):
     """
     Save the given image to the given output path.
@@ -318,28 +213,24 @@ def save_encoded_image(b64_image: str, output_path: str):
 
 def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('min', callback_data='min'),
+         InlineKeyboardButton('max', callback_data='max')],
         [InlineKeyboardButton('start SD'+sd, callback_data='strt'),
          InlineKeyboardButton('stop SD', callback_data='stp')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')],[
-         InlineKeyboardButton('get_opt', callback_data='get_opt_f'),
-         InlineKeyboardButton('rndm', callback_data='random'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr')],[
+         #InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')
+         InlineKeyboardButton('get_opt', callback_data='get_opt'),
+         InlineKeyboardButton('random', callback_data='random'),
          InlineKeyboardButton('rnd', callback_data='rnd'),
-         InlineKeyboardButton('rnd_hr', callback_data='rnd_hr'),
-         InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
-         InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')],[
-         InlineKeyboardButton('prmpt', callback_data='prompt'),
-         InlineKeyboardButton('prmpt_lxc', callback_data='prompt_lexica'),
-         InlineKeyboardButton('inf', callback_data='inf'),
-         InlineKeyboardButton('inf_lxc', callback_data='inf_lexica'),
-         InlineKeyboardButton('optn', callback_data='option')],[
+         InlineKeyboardButton('prompt', callback_data='prompt'),
+         InlineKeyboardButton('option', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
          InlineKeyboardButton('scale', callback_data='scale'),
          InlineKeyboardButton('steps', callback_data='steps'),
-         InlineKeyboardButton('smplrs', callback_data='samplers'),
-         InlineKeyboardButton('mdls', callback_data='models')]
+         InlineKeyboardButton('samplers', callback_data='samplers'),
+         InlineKeyboardButton('models', callback_data='models')]
     ])
     return ikb
 
@@ -350,27 +241,17 @@ async def cmd_status(message: types.Message) -> None:
     response = submit_get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', '')
     await bot.send_message(chat_id=message.from_user.id, text=response.json())
 
-# главное меню /opt
+# главное меню
 @dp.message_handler(commands=['opt'])
 async def opt(message: types.Message) -> None:
     await bot.send_message(chat_id=message.from_user.id, text='Опции', reply_markup=get_ikb())
 
-# /stop
 @dp.message_handler(commands=['stop'])
 async def stop(message: types.Message) -> None:
     global sd
     stop_sd()
     sd = '❌'
     await message.reply('SD остановлена', reply_markup=get_ikb())
-
-# /create_post_vk
-@dp.message_handler(commands=['create_post_vk'])
-async def stop(message: types.Message) -> None:
-    result = subprocess.run(
-        ['C:\OSPanel\modules\php\PHP_7.3\php.exe', "C:/OSPanel/domains/localhost/vk/create_post.php"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    output = result.stdout.decode('utf-8')
-    await message.reply(output, reply_markup=types.ReplyKeyboardRemove())
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
@@ -393,69 +274,9 @@ async def getModels(message: types.Message):
         arr = arr+'title '+item['title']+'\n\n'
     await message.reply(arr, parse_mode=types.ParseMode.HTML)
 
-# цикл по семплерам
-@dp.callback_query_handler(text='rnd_smp')
-async def rnd_smp(callback: types.CallbackQuery) -> None:
-    print('rnd_smp')
-    # вытянуть семплеры
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
-    for item in response.json():
-        s = item['name']
-        cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (s, callback.from_user.id))
-        con.commit()
-        data = create_post('gen', '')
-        title = s + '\n/stop \n/opt '
-        with open('dog.png', 'rb') as photo:
-            await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
-    # Для вывода итогов в конце тянем промпт и описание из data
-    cur.execute("SELECT prompt from prompts")
-    rows = cur.fetchall()
-    # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
-
-# бесконечный рандомный цикл HR
-@dp.callback_query_handler(text='inf')
-async def inf(callback: types.CallbackQuery) -> None:
-    # Отсылаем негатив, чтоб не мешался
-    cur.execute("SELECT negative from prompts")
-    await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
-    while True:
-        print("Этот цикл продолжается бесконечно!")
-        set_random(callback.from_user.id)
-        data = create_post('gen', 'hr', 0)
-        cur.execute("SELECT prompt from prompts")
-        prompt = cur.fetchall()[0]
-        with open('little_dog.png', 'rb') as photo:
-            await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
-        with open('dog.png', 'rb') as photo:
-            await bot.send_document(callback.from_user.id, photo)
-            await bot.send_message(chat_id=callback.from_user.id, text=prompt)
-            await bot.send_message(chat_id=callback.from_user.id, text=data)
-
-# бесконечный рандомный цикл HR с промптами из Лексики. TODO объединить с inf
-@dp.callback_query_handler(text='inf_lexica')
-async def inf_lexica(callback: types.CallbackQuery) -> None:
-    # Отсылаем негатив, чтоб не мешался
-    cur.execute("SELECT negative from prompts")
-    await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
-    while True:
-        print("Этот цикл продолжается бесконечно!")
-        set_random(callback.from_user.id, 1)
-        data = create_post('gen', 'hr', 0)
-        cur.execute("SELECT prompt from prompts")
-        prompt = cur.fetchall()[0]
-        with open('little_dog.png', 'rb') as photo:
-            await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
-        with open('dog.png', 'rb') as photo:
-            await bot.send_document(callback.from_user.id, photo)
-            await bot.send_message(chat_id=callback.from_user.id, text=prompt)
-            await bot.send_message(chat_id=callback.from_user.id, text=data)
-
-@dp.callback_query_handler(text='rnd_rev')
-async def rnd_rev(callback: types.CallbackQuery) -> None:
-    # повторение rnd
+# проходимся одним запросом по всем моделям
+@dp.callback_query_handler(text='rnd')
+async def rnd(callback: types.CallbackQuery) -> None:
     # обновить папку с моделями
     requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
     # вытянуть модели
@@ -465,9 +286,7 @@ async def rnd_rev(callback: types.CallbackQuery) -> None:
     # заполняем актуальный массив моделей в arr
     for item in response.json():
         arr.append(item['title'])
-    arr = list(reversed(arr))
     await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
-    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
     # запускаем цикл по списку
     for title in arr:
         #if i < 5:
@@ -476,9 +295,9 @@ async def rnd_rev(callback: types.CallbackQuery) -> None:
         con.commit()
         # меняем модель в памяти
         submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-        time.sleep(10)
+        time.sleep(5)
         data = create_post('gen', '')
-        title = title + '\n/stop \n/opt '
+        title = title + '\n/stop'
         # пока не через media
         with open('dog.png', 'rb') as photo:
             await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
@@ -487,115 +306,97 @@ async def rnd_rev(callback: types.CallbackQuery) -> None:
     cur.execute("SELECT prompt from prompts")
     rows = cur.fetchall()
     # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-    await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{rows[0]}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
-    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
-
-
-# проходимся одним запросом по всем моделям
-@dp.callback_query_handler(text='rnd')
-async def rnd(callback: types.CallbackQuery) -> None:
-    # обновить папку с моделями
-    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-    # вытянуть модели
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    cur.execute("SELECT prompt from prompts")
-    promptOld = cur.fetchall()
-    arr = []
-    i = 0
-    await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
-    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
-    for itemTxt in promptOld[0][0].split(';'):
-        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (itemTxt, callback.from_user.id))
-        con.commit()
-        # заполняем актуальный массив моделей в arr
-        for item in response.json():
-            #if i < 3:
-            arr.append(item['title'])
-            #i += 1
-        # запускаем цикл по списку
-        for title in arr:
-            # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
-            cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
-            con.commit()
-            # меняем модель в памяти
-            submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-            time.sleep(10)
-            data = create_post('gen', '')
-            title = title + '\n/stop \n/opt '
-            # пока не через media
-            with open('dog.png', 'rb') as photo:
-                await callback.message.answer_photo(photo, caption=title, reply_markup=types.ReplyKeyboardRemove())
-        # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-        await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{itemTxt}`', parse_mode='Markdown')
-        await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (promptOld, callback.from_user.id))
-    con.commit()
-    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
-
-
-@dp.callback_query_handler(text='rnd_hr')
-async def rnd_hr(callback: types.CallbackQuery) -> None:
-    # обновить папку с моделями
-    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
-    # вытянуть модели
-    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
-    cur.execute("SELECT prompt from prompts")
-    promptOld = cur.fetchall()
-    arr = []
-    # заполняем актуальный массив моделей в arr
-    for item in response.json():
-        arr.append(item['title'])
-    await callback.message.edit_text('Ну погнали', reply_markup=get_ikb())
-    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), parse_mode='Markdown')
-    for itemTxt in promptOld[0][0].split(';'):
-        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (itemTxt, callback.from_user.id))
-        con.commit()
-        # запускаем цикл по списку
-        for title in arr:
-            #if i < 5:
-            # на всякий случай пишем модель в БД. Может надо будет потом убрать, хз
-            cur.execute("UPDATE prompts set model = %s where user_id = %s", (title, callback.from_user.id))
-            con.commit()
-            # меняем модель в памяти
-            submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': title})
-            time.sleep(10)
-            data = create_post('gen', 'hr')
-            title = title + '\n/stop \n/opt '
-            # пока не через media
-            with open('little_dog.png', 'rb') as photo:
-                await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
-            with open('dog.png', 'rb') as photo:
-                await bot.send_document(callback.from_user.id, photo, caption=title)
-                #TODO photo + title
-        # callback.reply не сработает, так как на клаву нельзя ответить. Можно попробовать вытягивать последнее сообщение с промптом
-        await bot.send_message(chat_id=callback.from_user.id, text=f'prompt = `{itemTxt}`', parse_mode='Markdown')
-        await bot.send_message(chat_id=callback.from_user.id, text=f'data = `{data}`', parse_mode='Markdown')
-    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (promptOld, callback.from_user.id))
-    con.commit()
-    await bot.send_message(chat_id=callback.from_user.id, text='Менюшка', parse_mode='Markdown', reply_markup=get_ikb())
+    await bot.send_message(chat_id=callback.from_user.id, text=rows[0])
+    await bot.send_message(chat_id=callback.from_user.id, text=data)
 
 # Получить все последнии опции с БД текстом
-@dp.callback_query_handler(text='get_opt_f')
-async def get_opt_f(callback: types.CallbackQuery) -> None:
-    await bot.send_message(chat_id=callback.from_user.id, text=get_opt(), reply_markup=get_ikb(), parse_mode='Markdown')
+@dp.callback_query_handler(text='get_opt')
+async def get_opt(callback: types.CallbackQuery) -> None:
+    cur.execute("SELECT prompt, steps, width, height, scale, negative, sampler, model from prompts")
+    rows = cur.fetchall()
+    for row in rows:
+        prompt = row[0]
+        steps = row[1]
+        width = row[2]
+        height = row[3]
+        scale = row[4]
+        negative = row[5].replace('/negative ', '')
+        sampler = row[6]
+        model = row[7]
+        opt = f'prompt = `{prompt}` \n steps = *{steps}* \n width = *{width}* \n height = *{height}* ' \
+              f'\n scale = *{scale}* \n negative = *{negative}* \n sampler = *{sampler}* \n model = *{model}*'
+    await bot.send_message(chat_id=callback.from_user.id, text=opt, reply_markup=get_ikb(), parse_mode='Markdown')
 
 # генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
 @dp.callback_query_handler(text='prompt')
 async def prompt(callback: types.CallbackQuery) -> None:
-    await bot.send_message(chat_id=callback.from_user.id, text=get_random_prompt())
-
-# https://lexica.art/api/v1/search?q=apples
-@dp.callback_query_handler(text='prompt_lexica')
-async def prompt_lexica(callback: types.CallbackQuery) -> None:
-    prompt_lexica = random.choice(submit_get('https://lexica.art/api/v1/search?q= ', '').json()['images'])['prompt']
-    await bot.send_message(chat_id=callback.from_user.id, text=prompt_lexica)
-
+    cur.execute("SELECT prompt from prompts")
+    input_ids = tokenizer(cur.fetchall()[0], return_tensors='pt').input_ids
+    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=100, num_return_sequences=1,
+                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
+    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
+    await bot.send_message(chat_id=callback.from_user.id, text=prompt)
 
 @dp.callback_query_handler(text='random')
 async def randomCall(callback: types.CallbackQuery) -> None:
-    print('random')
-    set_random(callback.from_user.id)
+    arr = []
+    with open('random.json', encoding='utf-8') as json_file:
+        data = json.load(json_file)
+        for i in data['messages']:
+            if i['text'] != '':
+                arr.append(i['text'])
+    n = random.randint(0, len(arr) - 1)
+    translator = Translator()
+    translated = translator.translate(arr[n])
+    prompt = translated.text
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
+    con.commit()
+
+    scale = random.randint(1, 20)
+    cur.execute("UPDATE prompts set scale = %s where user_id = %s", (scale, callback.from_user.id))
+    con.commit()
+
+    steps = random.randint(20, 60)
+    #steps = 20
+    cur.execute("UPDATE prompts set steps = %s where user_id = %s", (steps, callback.from_user.id))
+    con.commit()
+
+    # обновить папку с моделями
+    requests.post('http://127.0.0.1:7861/sdapi/v1/refresh-checkpoints', '')
+    # вытянуть модели
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/sd-models', '')
+    arr = []
+    for item in response.json():
+        arr.append(item['title'])
+    model = random.randint(1, len(arr)) - 1
+    print(arr[model])
+    cur.execute("UPDATE prompts set model = %s where user_id = %s", (arr[model], callback.from_user.id))
+    con.commit()
+    # меняем модель в памяти
+    submit_post('http://127.0.0.1:7861/sdapi/v1/options', {'sd_model_checkpoint': arr[model]})
+    time.sleep(5)
+
+    # промпты
+    n = random.randint(0, len(arr)-1)
+    translator = Translator()
+    txt = data['messages'][n]['text']
+    translated = translator.translate(txt)
+    prompt = translated.text
+    cut_prompt(arr[model], prompt)
+    print(prompt)
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, callback.from_user.id))
+    con.commit()
+
+    # вытянуть семплеры
+    response = submit_get('http://127.0.0.1:7861/sdapi/v1/samplers', '')
+    arr = []
+    for item in response.json():
+        arr.append(item['name'])
+    sampler = random.randint(1, len(arr))-1
+    cur.execute("UPDATE prompts set sampler = %s where user_id = %s", (arr[sampler], callback.from_user.id))
+    con.commit()
+
+    print("new prompt")
     data = create_post('gen4', '')
     media = types.MediaGroup()
     media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
@@ -606,6 +407,29 @@ async def randomCall(callback: types.CallbackQuery) -> None:
     await bot.send_media_group(callback.message.chat.id, media=media)
     await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
     await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+
+@dp.callback_query_handler(text='min')
+async def cb_menu_1(callback: types.CallbackQuery) -> None:
+    data = create_post('min', '')
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile('dog.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog2.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog3.png'), json.dumps(data))
+    media.attach_photo(types.InputFile('dog4.png'), json.dumps(data))
+    await callback.message.delete()
+    await bot.send_media_group(callback.message.chat.id, media=media)
+    await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
+
+
+@dp.callback_query_handler(text='max')
+async def cb_menu_2(callback: types.CallbackQuery) -> None:
+    data = create_post('max', '')
+    print(147)
+    #print(data)
+    with open('dog.png', 'rb') as photo:
+        await callback.message.delete()
+        await callback.message.answer_photo(photo, caption=data, reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_message(chat_id=callback.from_user.id, text='Выбираем заново', reply_markup=get_ikb())
 
 
 @dp.callback_query_handler(text='gen')
@@ -622,14 +446,9 @@ async def cb_menu_3(callback: types.CallbackQuery) -> None:
 async def cb_menu_1(callback: types.CallbackQuery) -> None:
     print('gen_hr')
     data = create_post('gen', 'hr')
-    cur.execute("SELECT prompt from prompts")
-    text = cur.fetchall()[0]
-    with open('little_dog.png', 'rb') as photo:
-        await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
     with open('dog.png', 'rb') as photo:
         await callback.message.delete()
         await bot.send_document(callback.from_user.id, photo)
-        await bot.send_message(chat_id=callback.from_user.id, text=text, reply_markup=types.ReplyKeyboardRemove())
         await bot.send_message(chat_id=callback.from_user.id, text=data, reply_markup=get_ikb())
 
 @dp.callback_query_handler(text='gen_hr4')
@@ -638,7 +457,7 @@ async def cb_menu_5(callback: types.CallbackQuery) -> None:
     data = create_post('gen', 'hr4')
     #media = types.MediaGroup()
     with open('dog.png', 'rb') as photo:
-        #await callback.message.delete()
+        await callback.message.delete()
         await bot.send_document(callback.from_user.id, photo)
     with open('dog2.png', 'rb') as photo:
         await bot.send_document(callback.from_user.id, photo)
@@ -708,9 +527,6 @@ def get_size() -> InlineKeyboardMarkup:
 
 def get_scale() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('2', callback_data='scale|2'),
-         InlineKeyboardButton('3', callback_data='scale|3'),
-         InlineKeyboardButton('4',  callback_data='scale|4')],
         [InlineKeyboardButton('5', callback_data='scale|5'),
          InlineKeyboardButton('6', callback_data='scale|6'),
          InlineKeyboardButton('7',  callback_data='scale|7'),
@@ -731,8 +547,7 @@ def get_scale() -> InlineKeyboardMarkup:
 
 def get_steps() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('10',  callback_data='steps|10'),
-         InlineKeyboardButton('20',  callback_data='steps|20'),
+        [InlineKeyboardButton('20',  callback_data='steps|20'),
          InlineKeyboardButton('30',  callback_data='steps|30'),
          InlineKeyboardButton('40',  callback_data='steps|40'),
          InlineKeyboardButton('50',  callback_data='steps|50'),
@@ -767,12 +582,8 @@ def get_models() -> InlineKeyboardMarkup:
         arr2.append(arr)
     arr2.append([InlineKeyboardButton('gen', callback_data='gen'),
                  InlineKeyboardButton('gen4', callback_data='gen4'),
-                 InlineKeyboardButton('gen_hr', callback_data='gen_hr')
-                 ])
-    arr2.append([InlineKeyboardButton('rnd', callback_data='rnd'),
-                 InlineKeyboardButton('rnd_hr', callback_data='rnd_hr'),
-                 InlineKeyboardButton('rnd_rev', callback_data='rnd_rev'),
-                 InlineKeyboardButton('rnd_smp', callback_data='rnd_smp')
+                 InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+                 InlineKeyboardButton('rnd', callback_data='rnd')
                  ])
     ikb = InlineKeyboardMarkup(inline_keyboard=arr2)
     return ikb
@@ -878,18 +689,17 @@ async def cb_menu_12(callback: types.CallbackQuery) -> None:
 @dp.message_handler()
 async def all_msg_handler(message: types.Message):
     print('msg')
-    if detect(message.text) == 'ru':
-        await bot.send_message(chat_id=message.from_user.id, text='Введите на английском', reply_markup=types.ReplyKeyboardRemove())
-    else:
-        cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (message.text, message.from_user.id))
-        con.commit()
-        print("Record inserted successfully")
-        await bot.send_message(chat_id=message.from_user.id, text='Выбираем', reply_markup=get_ikb())
+    button_text = message.text
+    translator = Translator()
+    translated = translator.translate(button_text)
+    prompt = translated.text
+    cur.execute("UPDATE prompts set prompt = %s where user_id = %s", (prompt, message.from_user.id))
+    con.commit()
+    print("Record inserted successfully")
+    await bot.send_message(chat_id=message.from_user.id,
+                           text='Выбираем',
+                           reply_markup=get_ikb())
 
 if __name__ == '__main__':
-    try:
-        # Start polling for updates
-        # dp.start_polling()
-        executor.start_polling(dp, skip_updates=True)
-    except Exception as e:
-        logging.exception(e)
+    executor.start_polling(dp,
+                           skip_updates=True)
