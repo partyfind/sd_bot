@@ -5,6 +5,7 @@ import json
 import base64
 import requests
 import time
+import os
 import subprocess
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
@@ -105,7 +106,7 @@ def set_random(u, lexica = 0):
     prompt = get_random_prompt_from_file()
     if lexica == 1:
         prompt = rnd_prmt()
-        if "putin" in prompt:
+        if "putin" or "Putin" in prompt:
             prompt = rnd_prmt()
         else:
             arr = ['cat','dog','cyborg','landscape','girl','man']
@@ -330,12 +331,13 @@ def save_encoded_image(b64_image: str, output_path: str):
 def get_ikb() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton('start SD'+sd, callback_data='strt'),
-         InlineKeyboardButton('stop SD', callback_data='stp')],[
+         InlineKeyboardButton('stop SD', callback_data='stp'),
+         InlineKeyboardButton('get_opt', callback_data='get_opt_f'),
+         InlineKeyboardButton('get_lora', callback_data='get_lora')],[
          InlineKeyboardButton('gen', callback_data='gen'),
          InlineKeyboardButton('gen4', callback_data='gen4'),
          InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
          InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')],[
-         InlineKeyboardButton('get_opt', callback_data='get_opt_f'),
          InlineKeyboardButton('rndm', callback_data='random'),
          InlineKeyboardButton('rnd', callback_data='rnd'),
          InlineKeyboardButton('rnd_hr', callback_data='rnd_hr'),
@@ -403,6 +405,26 @@ async def getModels(message: types.Message):
         arr = arr+'model_name '+item['model_name']+'\n'
         arr = arr+'title '+item['title']+'\n\n'
     await message.reply(arr, parse_mode=types.ParseMode.HTML)
+
+# Получить все последнии опции с БД текстом
+@dp.callback_query_handler(text='get_lora')
+async def get_lora(callback: types.CallbackQuery) -> None:
+    print('get_lora')
+    # Путь к папке "Lora"
+    path = 'models/Lora'
+
+    # Получаем список файлов в папке
+    file_list = os.listdir(path)
+
+    # Фильтруем файлы, выбирая только те, которые заканчиваются на ".safetensors"
+    lora_files = [file_name for file_name in file_list if file_name.endswith('.safetensors')]
+
+    # Выводим список файлов, отформатированный в нужном формате
+    arr = ''
+    for file_name in lora_files:
+        name = file_name.replace('.safetensors', '')
+        arr = arr + f'`<lora:{name}:1>`\n\n'
+    await bot.send_message(chat_id=callback.from_user.id, text=arr, reply_markup=get_ikb(), parse_mode='Markdown')
 
 # цикл по семплерам
 @dp.callback_query_handler(text='rnd_smp')
@@ -601,7 +623,7 @@ async def prompt(callback: types.CallbackQuery) -> None:
 async def prompt_lexica(callback: types.CallbackQuery) -> None:
     prompt_lexica = rnd_prmt()
 
-    if "putin" in prompt_lexica:
+    if "putin" or "Putin" in prompt_lexica:
         prompt_lexica = rnd_prmt()
     else:
         arr = ['cat','dog','cyborg','landscape','girl','man']
