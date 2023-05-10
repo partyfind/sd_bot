@@ -1,44 +1,47 @@
-#900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
-import time
-import sys
+# 900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
+# https://docs.aiogram.dev/en/latest/
+from aiogram import Bot, Dispatcher, types, executor
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters import Command
 
-# Токен вашего Telegram бота
-TOKEN = "900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M"
+# API токен бота
+token = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 
-# ID чата, куда будут отправляться сообщения
-CHAT_ID = "125011869"
+# Инициализируем бота и диспетчер
+bot = Bot(token=token, parse_mode=types.ParseMode.MARKDOWN_V2)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
-# Функция обработчик команды старта
-def start(update: Update, context: CallbackContext):
-    # Отправляем сообщение со статусом "In progress"
-    message = context.bot.send_message(chat_id=CHAT_ID, text="In progress...")
-    # Запускаем длительный процесс
-    for i in range(10):
-        time.sleep(1)  # Длительный процесс
-        # Обновляем сообщение с прогрессом выполнения
-        context.bot.edit_message_text(chat_id=CHAT_ID,
-                                      message_id=message.message_id,
-                                      text=f"Выполнено: {i+1}/10")
-    # Отправляем сообщение с результатом выполнения
-    context.bot.edit_message_text(chat_id=CHAT_ID,
-                                  message_id=message.message_id,
-                                  text="Готово!")
-    # Завершаем выполнение скрипта
-    sys.exit()
+# Обработка команды /start
+@dp.message_handler(Command("start"))
+async def cmd_start(message: types.Message):
+    print('cmd_start')
+    storage.set_data('time', '20')
+    await message.answer('Вы ввели старт')
 
-def main():
-    # Создаем объект updater и привязываем его к Telegram боту
-    updater = Updater(TOKEN) #, use_context=True
-    # Создаем диспетчер для регистрации обработчиков команд
-    dispatcher = updater.dispatcher
-    # Регистрируем обработчик команды старта
-    dispatcher.add_handler(CommandHandler("start", start))
-    # Запускаем бота
-    updater.start_polling()
-    # Ожидаем остановки бота
-    updater.idle()
+# Обработка команды /help
+@dp.message_handler(Command("help"))
+async def cmd_help(callback: types.CallbackQuery) -> None:
+    print('cmd_help')
+    await bot.send_message(chat_id=callback.from_user.id,
+                           text='Бот для генерации картинок и промптов. \nКоманды:\n /opt - опции \n /gen - вид генерации',
+                           parse_mode='Markdown')
+
+# menu Options
+def menuOpt() -> InlineKeyboardMarkup:
+    m = InlineKeyboardMarkup(inline_keyboard=[
+          [InlineKeyboardButton('start SD', callback_data='startSD'),
+           InlineKeyboardButton('stop SD',  callback_data='stopSD')]
+        ])
+    return m
+
+# Нажали opt
+@dp.message_handler(Command("opt"))
+async def get_opt(callback: types.CallbackQuery) -> None:
+    print('get_opt')
+    await bot.send_message(chat_id=callback.from_user.id, text='текст над opt', reply_markup=menuOpt(), parse_mode='Markdown')
 
 if __name__ == '__main__':
-    main()
+    # Запускаем бота
+    executor.start_polling(dp, skip_updates=True)

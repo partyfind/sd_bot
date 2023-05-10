@@ -196,3 +196,130 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+#__________
+# 900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
+import asyncio
+import subprocess
+import datetime
+import aiogram
+from aiogram import Bot, Dispatcher, types
+
+
+# Токен вашего бота
+TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+
+# Идентификатор вашего чата с ботом
+CHAT_ID = '125011869'
+
+
+# Создаем экземпляры бота и диспетчера
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+
+
+# Обработчик команды для вывода системного времени
+@dp.message_handler(commands=['time'])
+async def cmd_time(message: types.Message):
+    print('cmd_time')
+    # Получаем текущее системное время
+    now = datetime.datetime.now()
+
+    # Отправляем сообщение с временем в чат
+    await message.answer(f"Текущее время: {now}")
+
+
+async def main():
+    print('main')
+    # Запускаем скрипт launch.py
+    process = await asyncio.create_subprocess_exec(
+        'python', 'time.py',
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+
+    # Читаем вывод скрипта launch.py и отправляем его в чат
+    print(process.stdout)
+    print(subprocess.PIPE)
+    asyncio.create_task(read_pipe(process.stdout, 'stdout'))
+
+    # Запускаем скрипт sys.py
+    process2 = await asyncio.create_subprocess_exec(
+        'python', 'sys.py',
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+
+    # Читаем вывод скрипта sys.py и отправляем его в чат
+    asyncio.create_task(read_pipe(process2.stdout, 'stderr'))
+
+    # Ждем завершения процессов запущенных скриптов
+    await process.wait()
+    await process2.wait()
+
+
+async def read_pipe(pipe, label):
+    print('read_pipe')
+    # Читаем строки из стандартного вывода скрипта
+    while True:
+        # Читаем строку из стандартного вывода скрипта
+        line = await pipe.readline()
+
+        # Если строка пустая, значит процесс завершился
+        if line == b'':
+            break
+
+        # Декодируем строку в utf-8 и отправляем ее в чат
+        output = line.decode('utf-8').strip()
+        await bot.send_message(CHAT_ID, f'{label}: {output}')
+
+
+if __name__ == '__main__':
+    print('__name__')
+    # Запускаем цикл событий бота и ожидаем завершения работы
+    asyncio.run(main())
+#___________________
+from aiogram import Bot, Dispatcher, types, executor
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters import Command
+
+BOT_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot, storage=MemoryStorage())
+
+# Обработка команды /start
+@dp.message_handler(Command("start"))
+async def cmd_start(message: types.Message):
+    print('cmd_start')
+    await message.answer('Вы ввели старт')
+
+async def set_sd(user_id: int, sd: int):
+    await dp.storage.set_data(user=user_id, data='sd', value=sd)
+
+@dp.message_handler(Command("sdon"))
+async def sdon(message: types.Message):
+    print('sdon')
+    await handle_start_command(message)
+    await message.answer('Вы ввели sdon')
+
+
+@dp.message_handler(Command("sdoff"))
+async def sdoff(message: types.Message):
+    print('sdoff')
+    await handle_stop_command(message)
+    await message.answer('Вы ввели sdoff')
+
+@dp.message_handler(Command("stat"))
+async def stat(message: types.Message):
+    print('stat')
+    stats = await dp.storage.get_data()
+    await message.answer(stats)
+
+async def handle_start_command(message):
+    await set_sd(message.from_user.id, 1) # присваиваем значение 1 переменной SD
+
+async def handle_stop_command(message):
+    await set_sd(message.from_user.id, 0) # присваиваем значение 0 переменной SD
+
+if __name__ == '__main__':
+    # Запускаем бота
+    executor.start_polling(dp, skip_updates=True)
