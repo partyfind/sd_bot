@@ -1,47 +1,44 @@
 # 900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
 # https://docs.aiogram.dev/en/latest/
-from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher.filters import Command
+import subprocess
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+from aiogram.utils import executor
 
-# API токен бота
-token = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+bot_token = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'  # замените '<TOKEN>' на ваш токен
+bot = Bot(token=bot_token)
+dp = Dispatcher(bot)
 
-# Инициализируем бота и диспетчер
-bot = Bot(token=token, parse_mode=types.ParseMode.MARKDOWN_V2)
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
-
-# Обработка команды /start
-@dp.message_handler(Command("start"))
-async def cmd_start(message: types.Message):
-    print('cmd_start')
-    storage.set_data('time', '20')
-    await message.answer('Вы ввели старт')
+def getOpt() -> InlineKeyboardMarkup:
+    opt = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('opt', callback_data='opt'),
+         InlineKeyboardButton('gen', callback_data='gen')]
+    ])
+    return opt
 
 # Обработка команды /help
-@dp.message_handler(Command("help"))
+@dp.message_handler(commands=['help'])
 async def cmd_help(callback: types.CallbackQuery) -> None:
     print('cmd_help')
     await bot.send_message(chat_id=callback.from_user.id,
                            text='Бот для генерации картинок и промптов. \nКоманды:\n /opt - опции \n /gen - вид генерации',
+                           reply_markup=getOpt(),
                            parse_mode='Markdown')
 
-# menu Options
-def menuOpt() -> InlineKeyboardMarkup:
-    m = InlineKeyboardMarkup(inline_keyboard=[
-          [InlineKeyboardButton('start SD', callback_data='startSD'),
-           InlineKeyboardButton('stop SD',  callback_data='stopSD')]
-        ])
-    return m
+async def send_error_message(callback, error_message):
+    try:
+        #await bot.send_message(callback.from_user.id, f'Ошибка: {error_message}')
+        print('send_error_message')
+        await callback.message.edit_text(error_message)
+    except Exception as e:
+        print(f"Ошибка отправки сообщения в Telegram: {e}")
 
-# Нажали opt
-@dp.message_handler(Command("opt"))
-async def get_opt(callback: types.CallbackQuery) -> None:
-    print('get_opt')
-    await bot.send_message(chat_id=callback.from_user.id, text='текст над opt', reply_markup=menuOpt(), parse_mode='Markdown')
+@dp.callback_query_handler(text='opt')
+async def startSD(callback: types.CallbackQuery) -> None:
+    print('startSD')
+    process = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'], stderr=subprocess.PIPE)
+    while True:
+        await callback.message.edit_text(process.stderr.readline().decode().strip())
 
 if __name__ == '__main__':
-    # Запускаем бота
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp)
