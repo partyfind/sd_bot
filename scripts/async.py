@@ -18,7 +18,7 @@ async def get_time():
     while True:
         await asyncio.sleep(2)
         time = datetime.now().strftime("%H:%M:%S")
-        print(f"Этот цикл продолжится бесконечно! {time}")
+        print(f"Этот цикл продолжится бесконечно2! {time}")
 
 @dp.message_handler(commands=['time'])
 async def start_time(message: types.Message):
