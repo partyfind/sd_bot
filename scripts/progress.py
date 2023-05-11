@@ -20,11 +20,10 @@ def getOpt() -> InlineKeyboardMarkup:
     ])
     return opt
 
-@dp.message_handler(commands=['help'])
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
     print('start')
-    await message.reply('Тестирование асинхрона.\n/help', reply_markup=getOpt())
+    await message.reply('Тестирование асинхрона.\ntime - запускает бесконечный счётчик \n/info - выводит сообщение в телегу', reply_markup=getOpt())
 
 @dp.message_handler(commands=['opt'])
 async def opt(message: types.Message) -> None:
@@ -34,6 +33,7 @@ async def opt(message: types.Message) -> None:
 @dp.callback_query_handler(text='sd_on')
 async def sd_on(callback: types.CallbackQuery) -> None:
     print('sd_on')
+    await callback.message.edit_text('sd_on start callback', reply_markup=getOpt())
     subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'])
 
 @dp.callback_query_handler(text='gen')
