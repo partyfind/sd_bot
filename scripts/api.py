@@ -4,9 +4,12 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import subprocess
+import time
 import json
 import requests
-import time
+import io
+import base64
+from PIL import Image, PngImagePlugin
 
 API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 
@@ -84,21 +87,32 @@ def ping(status: str):
 # Стартовое меню
 def getStart() -> InlineKeyboardMarkup:
     st = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('opt', callback_data='opt'),
-         InlineKeyboardButton('gen', callback_data='gen'),
-         InlineKeyboardButton('help', callback_data='help')]
+        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
+         InlineKeyboardButton('opt',   callback_data='opt'),
+         InlineKeyboardButton('gen',   callback_data='gen'),
+         InlineKeyboardButton('help',  callback_data='help')]
     ])
     return st
 
 # Меню опций
 def getOpt() -> InlineKeyboardMarkup:
     opt = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
-         InlineKeyboardButton('scripts', callback_data='scripts'),
+        [InlineKeyboardButton('scripts',  callback_data='scripts'),
          InlineKeyboardButton('settings', callback_data='settings'),
-         InlineKeyboardButton('prompt', callback_data='prompt')]
+         InlineKeyboardButton('prompt',   callback_data='prompt')]
     ])
     return opt
+
+# Меню генераций
+def getGen() -> InlineKeyboardMarkup:
+    gen = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('gen1', callback_data='gen1'),
+         InlineKeyboardButton('gen4', callback_data='gen4'),
+         InlineKeyboardButton('gen10', callback_data='gen10'),
+         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')]
+    ])
+    return gen
 
 # -------- COMMANDS ----------
 # start/help
@@ -134,17 +148,17 @@ async def inl_sd(callback: types.CallbackQuery) -> None:
     if sd == '✅':
         stop_sd()
         sd = '⌛'
-        await callback.message.edit_text('Останавливаем SD', reply_markup=getOpt())
+        await callback.message.edit_text('Останавливаем SD', reply_markup=getStart())
         ping('stop')
         sd = '❌'
-        await callback.message.edit_text('SD остановлена', reply_markup=getOpt())
+        await callback.message.edit_text('SD остановлена \n/opt\n/gen\n/help', reply_markup=getStart())
     else:
         start_sd()
         sd = '⌛'
-        await callback.message.edit_text('Запускаем SD', reply_markup=getOpt())
+        await callback.message.edit_text('Запускаем SD', reply_markup=getStart())
         ping('start')
         sd = '✅'
-        await callback.message.edit_text('SD запущена', reply_markup=getOpt())
+        await callback.message.edit_text('SD запущена \n/opt\n/gen\n/help', reply_markup=getStart())
 
 # Остановка SD по /stop
 @dp.message_handler(commands=['stop'])
@@ -157,18 +171,51 @@ async def cmd_stop(message: types.Message) -> None:
     sd = '❌'
     await bot.send_message(chat_id=message.from_user.id, text='SD остановлена', reply_markup=getOpt())
 
+# Вызов меню генераций
 @dp.callback_query_handler(text='gen')
 async def inl_gen(callback: types.CallbackQuery) -> None:
     print('inl_gen')
-    # TODO progressapi ?
-    response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
-    e = response.json()['eta_relative']
-    while e > 0:
+    await callback.message.edit_text('Виды генераций', reply_markup=getGen())
+
+# Генераций
+@dp.callback_query_handler(text='gen1')
+async def inl_gen_all(callback: types.CallbackQuery) -> None:
+    print('inl_gen_all')
+    payload = {
+        "prompt": "cat in car",
+        "steps": 5
+    }
+
+    response = requests.post(url=f'{local}/sdapi/v1/txt2img', json=payload)
+
+    r = response.json()
+
+    for i in r['images']:
+        image = Image.open(io.BytesIO(base64.b64decode(i.split(",", 1)[0])))
+
+        #png_payload = {
+        #    "image": "data:image/png;base64," + i
+        #}
+        #response2 = requests.post(url=f'{local}/sdapi/v1/png-info', json=png_payload)
+
+        #pnginfo = PngImagePlugin.PngInfo()
+        #pnginfo.add_text("parameters", response2.json().get("info"))
+        #image.save('output.png', pnginfo=pnginfo)
+
+
+        # -------------------
+        # TODO progressapi ?
         response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
-        e = round(response.json()['eta_relative'], 1)
-        time.sleep(2)
-        await callback.message.edit_text(e, reply_markup=getOpt())
-    await callback.message.edit_text('Готово', reply_markup=getOpt())
+        e = response.json()['eta_relative']
+        while e > 0:
+            response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
+            e = round(response.json()['eta_relative'], 1)
+            time.sleep(2)
+            await callback.message.edit_text(e, reply_markup=getOpt())
+        await callback.message.edit_text('Готово', reply_markup=getOpt())
+
+    await callback.message.answer_photo(image, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
+
 
 # -------- BOT POLLING ----------
 if __name__ == '__main__':
