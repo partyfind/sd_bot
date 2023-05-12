@@ -13,9 +13,15 @@ API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
+# -------- GLOBAL ----------
+
+local = 'http://127.0.0.1:7861'
 process = None
 sd = '❌'
 
+# -------- FUNCTIONS ----------
+
+# Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
     global process
     if not process:
@@ -26,6 +32,7 @@ def start_sd():
         except subprocess.CalledProcessError as e:
             print("e:", e)
 
+# Остановка SD
 def stop_sd():
     global process, sd
     if process:
@@ -34,23 +41,10 @@ def stop_sd():
         process = None
         sd = '❌'
 
-def getOpt() -> InlineKeyboardMarkup:
-    opt = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
-         InlineKeyboardButton('gen', callback_data='gen')]
-    ])
-    return opt
-
-def getStart() -> InlineKeyboardMarkup:
-    opt = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
-         InlineKeyboardButton('gen', callback_data='gen')]
-    ])
-    return opt
-
+# Проверка связи до запущенной локальной SD с nowebui
 def ping(status: str):
     n = 0
-    url = 'http://127.0.0.1:7861/docs'
+    url = local+'/docs'
     if status == 'stop':
         while n == 200:
             time.sleep(3)
@@ -86,20 +80,56 @@ def ping(status: str):
                 print("OOps: Something Else", err)
         return True
 
+# -------- MENU ----------
+# Стартовое меню
+def getStart() -> InlineKeyboardMarkup:
+    st = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('opt', callback_data='opt'),
+         InlineKeyboardButton('gen', callback_data='gen'),
+         InlineKeyboardButton('help', callback_data='help')]
+    ])
+    return st
+
+# Меню опций
+def getOpt() -> InlineKeyboardMarkup:
+    opt = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
+         InlineKeyboardButton('scripts', callback_data='scripts'),
+         InlineKeyboardButton('settings', callback_data='settings'),
+         InlineKeyboardButton('prompt', callback_data='prompt')]
+    ])
+    return opt
+
+# -------- COMMANDS ----------
+# start/help
 @dp.message_handler(commands=['help'])
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
-    print('start')
-    await message.reply('Тестирование асинхрона.\n/help', reply_markup=getOpt())
+    print('cmd_start')
+    await message.reply('Это бот для локального завуска SD.\n/opt\n/gen\n/help', reply_markup=getStart())
 
+# Получить опции
 @dp.message_handler(commands=['opt'])
-async def opt(message: types.Message) -> None:
-    print('opt')
+async def cmd_opt(message: types.Message) -> None:
+    print('cmd_opt')
     await message.reply('Опции', reply_markup=getOpt())
 
+# Получить опции inline
+@dp.callback_query_handler(text='opt')
+async def inl_opt(callback: types.CallbackQuery) -> None:
+    print('inl_opt')
+    await callback.message.edit_text('Опции', reply_markup=getOpt())
+
+# Получить опции inline
+@dp.callback_query_handler(text='help')
+async def inl_help(callback: types.CallbackQuery) -> None:
+    print('inl_help')
+    await callback.message.edit_text('Опции', reply_markup=getOpt())
+
+# Запуск/Остановка SD. Завязываемся на глобальную иконку sd
 @dp.callback_query_handler(text='sd')
-async def cmd_sd(callback: types.CallbackQuery) -> None:
-    print('cmd_sd')
+async def inl_sd(callback: types.CallbackQuery) -> None:
+    print('inl_sd')
     global sd
     if sd == '✅':
         stop_sd()
@@ -116,6 +146,7 @@ async def cmd_sd(callback: types.CallbackQuery) -> None:
         sd = '✅'
         await callback.message.edit_text('SD запущена', reply_markup=getOpt())
 
+# Остановка SD по /stop
 @dp.message_handler(commands=['stop'])
 async def cmd_stop(message: types.Message) -> None:
     print('cmd_stop')
@@ -127,17 +158,21 @@ async def cmd_stop(message: types.Message) -> None:
     await bot.send_message(chat_id=message.from_user.id, text='SD остановлена', reply_markup=getOpt())
 
 @dp.callback_query_handler(text='gen')
-async def gen(callback: types.CallbackQuery) -> None:
-    print('gen')
-    response = requests.get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
+async def inl_gen(callback: types.CallbackQuery) -> None:
+    print('inl_gen')
+    # TODO progressapi ?
+    response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
     e = response.json()['eta_relative']
     while e > 0:
-        response = requests.get('http://127.0.0.1:7861/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
+        response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
         e = round(response.json()['eta_relative'], 1)
         time.sleep(2)
         await callback.message.edit_text(e, reply_markup=getOpt())
     await callback.message.edit_text('Готово', reply_markup=getOpt())
 
-
+# -------- BOT POLLING ----------
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+
+# -------- COPYRIGHT ----------
+# join https://t.me/mishgenai
