@@ -13,12 +13,78 @@ API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
+process = None
+sd = '❌'
+
+def start_sd():
+    global process
+    if not process:
+        print('start_process sd')
+        try:
+            process = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'])
+            # TODO stderr, stdout выводить в сообщение телеграм
+        except subprocess.CalledProcessError as e:
+            print("e:", e)
+
+def stop_sd():
+    global process, sd
+    if process:
+        print('stop_process sd')
+        process.terminate()
+        process = None
+        sd = '❌'
+
 def getOpt() -> InlineKeyboardMarkup:
     opt = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('sd_on', callback_data='sd_on'),
+        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
          InlineKeyboardButton('gen', callback_data='gen')]
     ])
     return opt
+
+def getStart() -> InlineKeyboardMarkup:
+    opt = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
+         InlineKeyboardButton('gen', callback_data='gen')]
+    ])
+    return opt
+
+def ping(status: str):
+    n = 0
+    url = 'http://127.0.0.1:7861/docs'
+    if status == 'stop':
+        while n == 200:
+            time.sleep(3)
+            try:
+                r = requests.get(url, timeout=3)
+                r.raise_for_status()
+                n = r.status_code
+                print(r.status_code)
+            except requests.exceptions.HTTPError as errh:
+                print("Http Error:", errh)
+            except requests.exceptions.ConnectionError as errc:
+                print("Error Connecting:", errc)
+            except requests.exceptions.Timeout as errt:
+                print("Timeout Error:", errt)
+            except requests.exceptions.RequestException as err:
+                print("OOps: Something Else", err)
+        return True
+    else:
+        while n != 200:
+            time.sleep(3)
+            try:
+                r = requests.get(url, timeout=3)
+                r.raise_for_status()
+                n = r.status_code
+                print(r.status_code)
+            except requests.exceptions.HTTPError as errh:
+                print("Http Error:", errh)
+            except requests.exceptions.ConnectionError as errc:
+                print("Error Connecting:", errc)
+            except requests.exceptions.Timeout as errt:
+                print("Timeout Error:", errt)
+            except requests.exceptions.RequestException as err:
+                print("OOps: Something Else", err)
+        return True
 
 @dp.message_handler(commands=['help'])
 @dp.message_handler(commands=['start'])
@@ -31,21 +97,34 @@ async def opt(message: types.Message) -> None:
     print('opt')
     await message.reply('Опции', reply_markup=getOpt())
 
-@dp.callback_query_handler(text='sd_on')
-async def sd_on(callback: types.CallbackQuery) -> None:
-    print('sd_on')
-    #subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers', '--share']) #, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-    print(38)
-    try:
-        output = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'], text=True) #, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-        print("stdout:", output.stdout)
-        print("stderr:", output.stderr)
-        #print(f"Pulled changes for repository in :\n{output.decode('utf-8').strip()}\n")
-    except subprocess.CalledProcessError as e:
-        print("e:", e)
-        #print(f"Couldn't perform 'git pull' on repository in :\n{e.output.decode('utf-8').strip()}\n")
-    #print('stdout = '+process.stdout.readline().decode().strip())
-    #print('stderr = '+process.stderr.readline().decode().strip())
+@dp.callback_query_handler(text='sd')
+async def cmd_sd(callback: types.CallbackQuery) -> None:
+    print('cmd_sd')
+    global sd
+    if sd == '✅':
+        stop_sd()
+        sd = '⌛'
+        await callback.message.edit_text('Останавливаем SD', reply_markup=getOpt())
+        ping('stop')
+        sd = '❌'
+        await callback.message.edit_text('SD остановлена', reply_markup=getOpt())
+    else:
+        start_sd()
+        sd = '⌛'
+        await callback.message.edit_text('Запускаем SD', reply_markup=getOpt())
+        ping('start')
+        sd = '✅'
+        await callback.message.edit_text('SD запущена', reply_markup=getOpt())
+
+@dp.message_handler(commands=['stop'])
+async def cmd_stop(message: types.Message) -> None:
+    print('cmd_stop')
+    global sd
+    stop_sd()
+    sd = '⌛' # ?
+    ping('stop')
+    sd = '❌'
+    await bot.send_message(chat_id=message.from_user.id, text='SD остановлена', reply_markup=getOpt())
 
 @dp.callback_query_handler(text='gen')
 async def gen(callback: types.CallbackQuery) -> None:
