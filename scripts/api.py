@@ -24,6 +24,12 @@ sd = '❌'
 
 # -------- FUNCTIONS ----------
 
+# функция для конвертации base64 в фото
+def convert_base64_to_photo(base64_string):
+    image_data = base64.b64decode(base64_string)
+    image = Image.open(io.BytesIO(image_data))
+    return image
+
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
     global process
@@ -177,7 +183,7 @@ async def inl_gen(callback: types.CallbackQuery) -> None:
     print('inl_gen')
     await callback.message.edit_text('Виды генераций', reply_markup=getGen())
 
-# Генераций
+# Генерация одной картинки
 @dp.callback_query_handler(text='gen1')
 async def inl_gen_all(callback: types.CallbackQuery) -> None:
     print('inl_gen_all')
@@ -185,41 +191,14 @@ async def inl_gen_all(callback: types.CallbackQuery) -> None:
         "prompt": "cat in car",
         "steps": 5
     }
-
-    response = requests.post(url=f'{local}/sdapi/v1/txt2img', json=payload)
-
-    r = response.json()
-
-    for i in r['images']:
-        image = Image.open(io.BytesIO(base64.b64decode(i.split(",", 1)[0])))
-
-        #png_payload = {
-        #    "image": "data:image/png;base64," + i
-        #}
-        #response2 = requests.post(url=f'{local}/sdapi/v1/png-info', json=png_payload)
-
-        #pnginfo = PngImagePlugin.PngInfo()
-        #pnginfo.add_text("parameters", response2.json().get("info"))
-        #image.save('output.png', pnginfo=pnginfo)
-
-
-        # -------------------
-        # TODO progressapi ?
-        response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
-        e = response.json()['eta_relative']
-        while e > 0:
-            response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
-            e = round(response.json()['eta_relative'], 1)
-            time.sleep(2)
-            await callback.message.edit_text(e, reply_markup=getOpt())
-        await callback.message.edit_text('Готово', reply_markup=getOpt())
-
-    await callback.message.answer_photo(image, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
-
+    response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
+    photo = convert_base64_to_photo(response.json()['images'][0])
+    await callback.message.answer_photo(photo, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
 
 # -------- BOT POLLING ----------
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
 
 # -------- COPYRIGHT ----------
+# Мишген
 # join https://t.me/mishgenai
