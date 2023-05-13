@@ -28,7 +28,7 @@ async def cmd_start(message: types.Message) -> None:
     process = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'])
     payload = {
         "prompt": "cat in car",
-        "steps": 5
+        "steps": 15
     }
     print(8)
     n = 0
@@ -50,9 +50,10 @@ async def cmd_start(message: types.Message) -> None:
             print("OOps: Something Else", err)
     print(24)
     response = requests.post(url='http://127.0.0.1:7861/sdapi/v1/txt2img', json=payload)
-    photo = convert_base64_to_photo(response.json()['images'][0])
-    #print(photo)
-    await message.answer_photo(photo, caption="caption")
+    #photo = convert_base64_to_photo(response.json()['images'][0])
+    binary_image = base64.b64decode(response.json()['images'][0])
+    await bot.send_photo(message.chat.id, binary_image)
+    #await message.answer_photo(photo, caption="caption")
 
 
 if __name__ == '__main__':

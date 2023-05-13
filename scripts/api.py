@@ -24,12 +24,6 @@ sd = '❌'
 
 # -------- FUNCTIONS ----------
 
-# функция для конвертации base64 в фото
-def convert_base64_to_photo(base64_string):
-    image_data = base64.b64decode(base64_string)
-    image = Image.open(io.BytesIO(image_data))
-    return image
-
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
     global process
@@ -185,14 +179,14 @@ async def inl_gen(callback: types.CallbackQuery) -> None:
 
 # Генерация одной картинки
 @dp.callback_query_handler(text='gen1')
-async def inl_gen_all(callback: types.CallbackQuery) -> None:
-    print('inl_gen_all')
+async def inl_gen1(callback: types.CallbackQuery) -> None:
+    print('inl_gen1')
     payload = {
         "prompt": "cat in car",
         "steps": 5
     }
     response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
-    photo = convert_base64_to_photo(response.json()['images'][0])
+    photo = base64.b64decode(response.json()['images'][0])
     await callback.message.answer_photo(photo, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
 
 # -------- BOT POLLING ----------
