@@ -2,7 +2,7 @@
 # https://docs.aiogram.dev/en/latest/
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 import subprocess
 import time
 import json
@@ -10,6 +10,8 @@ import requests
 import asyncio
 import base64
 from datetime import datetime
+import aiohttp
+from typing import Union
 
 API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 
@@ -192,11 +194,21 @@ async def cmd_stat(message: types.Message) -> None:
         await send_message.edit_text(e, reply_markup=getOpt())
     await send_message.edit_text('Готово', reply_markup=getOpt())
 
-# Вызов меню генераций
-@dp.callback_query_handler(text='gen')
-async def inl_gen(callback: types.CallbackQuery) -> None:
+# Вызов меню генераций getGen
+@dp.message_handler(commands=["gen"])
+@dp.callback_query_handler(text="gen")
+async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
     print('inl_gen')
-    await callback.message.edit_text('Виды генераций', reply_markup=getGen())
+    # Если команда /gen
+    if hasattr(message, 'content_type'):
+        await bot.send_message(chat_id=message.from_user.id, text='Виды генераций', reply_markup=getGen())
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text='Виды генераций',
+            reply_markup=getGen()
+        )
 
 # Генерация одной картинки
 @dp.callback_query_handler(text='gen1')
