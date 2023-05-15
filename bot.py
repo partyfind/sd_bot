@@ -25,18 +25,19 @@ sd = '❌'
 # -------- FUNCTIONS ----------
 
 # Запуск SD через subprocess и запись в глобальную переменную process
-def start_sd():
+async def start_sd():
     global process
     if not process:
         print('start_process sd')
         try:
             process = subprocess.Popen(['python', 'launch.py', '--nowebui', '--xformers'])
+            await asyncio.get_running_loop().run_in_executor(None, process.communicate)
             # TODO stderr, stdout выводить в сообщение телеграм
         except subprocess.CalledProcessError as e:
             print("e:", e)
 
 # Остановка SD
-def stop_sd():
+async def stop_sd():
     global process, sd
     if process:
         print('stop_process sd')
@@ -140,6 +141,12 @@ async def inl_help(callback: types.CallbackQuery) -> None:
     print('inl_help')
     await callback.message.edit_text('Опции', reply_markup=getOpt())
 
+# Обработчик команды /time
+@dp.message_handler(commands='time')
+async def time_handler(message: types.Message):
+    # Выводим текущее системное время
+    await message.answer(str(datetime.now()))
+
 # Запуск/Остановка SD. Завязываемся на глобальную иконку sd
 @dp.callback_query_handler(text='sd')
 async def inl_sd(callback: types.CallbackQuery) -> None:
@@ -153,7 +160,8 @@ async def inl_sd(callback: types.CallbackQuery) -> None:
         sd = '❌'
         await callback.message.edit_text('SD остановлена \n/opt\n/gen\n/help', reply_markup=getStart())
     else:
-        start_sd()
+        #start_sd()
+        asyncio.create_task(start_sd(), name='launch')
         sd = '⌛'
         await callback.message.edit_text('Запускаем SD', reply_markup=getStart())
         ping('start')
