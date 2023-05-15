@@ -90,8 +90,9 @@ def ping(status: str):
 def getStart(returnAll = 1) -> InlineKeyboardMarkup:
     keys = [InlineKeyboardButton('sd'+sd, callback_data='sd'),
             InlineKeyboardButton('opt',   callback_data='opt'),
-            InlineKeyboardButton('skip',   callback_data='skip'),
             InlineKeyboardButton('gen',   callback_data='gen'),
+            InlineKeyboardButton('skip',  callback_data='skip'),
+            InlineKeyboardButton('status',  callback_data='status'),
             InlineKeyboardButton('help',  callback_data='help')]
     st = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
@@ -123,13 +124,17 @@ def getGen(returnAll = 1) -> InlineKeyboardMarkup:
     else:
         return keys
 
+# Меню текста
+def getTxt():
+    return '\n/start\n/opt\n/gen\n/skip\n/status\n/help'
+
 # -------- COMMANDS ----------
 # start/help
 @dp.message_handler(commands=['help'])
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
     print('cmd_start')
-    await message.reply('Это бот для локального завуска SD.\n/skip\n/opt\n/gen\n/help', reply_markup=getStart())
+    await message.reply('Это бот для локального запуска SD'+getTxt(), reply_markup=getStart())
 
 # Получить опции
 @dp.message_handler(commands=['opt'])
@@ -157,17 +162,17 @@ async def inl_sd(callback: types.CallbackQuery) -> None:
     if sd == '✅':
         stop_sd()
         sd = '⌛'
-        await callback.message.edit_text('Останавливаем SD', reply_markup=getStart())
+        await callback.message.edit_text('Останавливаем SD'+getTxt(), reply_markup=getStart())
         ping('stop')
         sd = '❌'
-        await callback.message.edit_text('SD остановлена \n/opt\n/gen\n/help', reply_markup=getStart())
+        await callback.message.edit_text('SD остановлена'+getTxt(), reply_markup=getStart())
     else:
         start_sd()
         sd = '⌛'
-        await callback.message.edit_text('Запускаем SD', reply_markup=getStart())
+        await callback.message.edit_text('Запускаем SD'+getTxt(), reply_markup=getStart())
         ping('start')
         sd = '✅'
-        await callback.message.edit_text('SD запущена \n/opt\n/gen\n/help', reply_markup=getStart())
+        await callback.message.edit_text('SD запущена'+getTxt(), reply_markup=getStart())
 
 # Остановка SD по /stop
 @dp.message_handler(commands=['stop'])
@@ -189,6 +194,7 @@ async def send_time(background_task: asyncio.Task):
 # Проверка прогресса
 @dp.message_handler(commands=['stat'])
 async def cmd_stat(message: types.Message) -> None:
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     asyncio.create_task(send_time(asyncio.create_task(bot.send_message(message.chat.id, "Текущее время:"))))
     print('cmd_stat')
     send_message = await bot.send_message(message.chat.id, 'Картинка генерируется')
@@ -198,14 +204,13 @@ async def cmd_stat(message: types.Message) -> None:
         response = requests.get(local+'/sdapi/v1/progress?skip_current_image=false', data=json.dumps(''))
         e = round(response.json()['eta_relative'], 1)
         time.sleep(2)
-        await send_message.edit_text(e, reply_markup=getOpt())
-    await send_message.edit_text('Готово', reply_markup=getOpt())
+        await send_message.edit_text(e, reply_markup=keyboard)
+    await send_message.edit_text('Готово', reply_markup=keyboard)
 
 # Вызов меню генераций getGen
 @dp.message_handler(commands=["gen"])
 @dp.callback_query_handler(text="gen")
 async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
-    print([getGen(0), getOpt(0)])
     print('inl_gen')
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     # Если команда /gen
@@ -223,15 +228,14 @@ async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
 @dp.callback_query_handler(text='gen1')
 async def inl_gen1(callback: types.CallbackQuery) -> None:
     print('inl_gen1')
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     # TODO проверка на включенность SD
     prompt = 'cat in cap'
     payload = {
         "prompt": prompt,
         "steps": 25
     }
-    send_message = await bot.send_message(callback.message.chat.id, 'Картинка генерируется. Промпт: `'+prompt+'`', parse_mode='Markdown')
-    #response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
-
+    await bot.send_message(callback.message.chat.id, 'Картинка генерируется. Промпт: `' + prompt + '`', parse_mode='Markdown')
     # Создаем сессию
     async with aiohttp.ClientSession() as session:
         # Отправляем POST-запрос к первому сервису
@@ -239,11 +243,39 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
             # Получаем ответ и выводим его
             response_json = await response_txt2img.json()
         photo = base64.b64decode(response_json['images'][0])
-        await callback.message.answer_photo(photo, caption='Готово', reply_markup=getGen())
+        await callback.message.answer_photo(photo, caption='Готово', reply_markup=keyboard)
+
+# Обработчик команды /status
+@dp.message_handler(commands=['status'])
+@dp.callback_query_handler(text="status")
+async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
+    if hasattr(message, 'content_type'):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(local + '/sdapi/v1/progress?skip_current_image=false') as response_progress:
+                response_json = await response_progress.json()
+                e = round(response_json['eta_relative'], 1)
+                time.sleep(2)
+                await message.answer(e)
+    else:
+        e = 1
+        while e > 0:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(local + '/sdapi/v1/progress?skip_current_image=false') as response_progress:
+                    response_json2 = await response_progress.json()
+                    print(response_json2)
+                    e = round(response_json2['eta_relative'], 1)
+                    time.sleep(2)
+                    await bot.edit_message_text(
+                        chat_id=message.message.chat.id,
+                        message_id=message.message.message_id,
+                        text=e,
+                        reply_markup=getStart()
+                    )
 
 # Обработчик команды /skip
 @dp.message_handler(commands=['skip'])
-async def skip(message: types.Message):
+@dp.callback_query_handler(text="skip")
+async def inl_skip(message: Union[types.Message, types.CallbackQuery]) -> None:
     print('skip')
     # Создаем сессию
     async with aiohttp.ClientSession() as session:
@@ -252,7 +284,15 @@ async def skip(message: types.Message):
             # Получаем ответ и выводим его
             response_json = await response.json()
             print(response_json)
-            await message.answer('skip')
+            if hasattr(message, 'content_type'):
+                await message.answer('skip')
+            else:
+                await bot.edit_message_text(
+                    chat_id=message.message.chat.id,
+                    message_id=message.message.message_id,
+                    text='Виды генераций',
+                    reply_markup=getStart()
+                )
 
 # -------- BOT POLLING ----------
 if __name__ == '__main__':
