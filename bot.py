@@ -87,34 +87,41 @@ def ping(status: str):
 
 # -------- MENU ----------
 # Стартовое меню
-def getStart() -> InlineKeyboardMarkup:
-    st = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('sd'+sd, callback_data='sd'),
-         InlineKeyboardButton('opt',   callback_data='opt'),
-         InlineKeyboardButton('gen',   callback_data='gen'),
-         InlineKeyboardButton('help',  callback_data='help')]
-    ])
-    return st
+def getStart(returnAll = 1) -> InlineKeyboardMarkup:
+    keys = [InlineKeyboardButton('sd'+sd, callback_data='sd'),
+            InlineKeyboardButton('opt',   callback_data='opt'),
+            InlineKeyboardButton('skip',   callback_data='skip'),
+            InlineKeyboardButton('gen',   callback_data='gen'),
+            InlineKeyboardButton('help',  callback_data='help')]
+    st = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return st
+    else:
+        return keys
 
 # Меню опций
-def getOpt() -> InlineKeyboardMarkup:
-    opt = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('scripts',  callback_data='scripts'),
-         InlineKeyboardButton('settings', callback_data='settings'),
-         InlineKeyboardButton('prompt',   callback_data='prompt')]
-    ])
-    return opt
+def getOpt(returnAll = 1) -> InlineKeyboardMarkup:
+    keys = [InlineKeyboardButton('scripts',  callback_data='scripts'),
+            InlineKeyboardButton('settings', callback_data='settings'),
+            InlineKeyboardButton('prompt',   callback_data='prompt')]
+    opt = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return opt
+    else:
+        return keys
 
 # Меню генераций
-def getGen() -> InlineKeyboardMarkup:
-    gen = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton('gen1', callback_data='gen1'),
-         InlineKeyboardButton('gen4', callback_data='gen4'),
-         InlineKeyboardButton('gen10', callback_data='gen10'),
-         InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
-         InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')]
-    ])
-    return gen
+def getGen(returnAll = 1) -> InlineKeyboardMarkup:
+    keys = [InlineKeyboardButton('gen1', callback_data='gen1'),
+            InlineKeyboardButton('gen4', callback_data='gen4'),
+            InlineKeyboardButton('gen10', callback_data='gen10'),
+            InlineKeyboardButton('gen_hr', callback_data='gen_hr'),
+            InlineKeyboardButton('gen_hr4', callback_data='gen_hr4')]
+    gen = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return gen
+    else:
+        return keys
 
 # -------- COMMANDS ----------
 # start/help
@@ -122,7 +129,7 @@ def getGen() -> InlineKeyboardMarkup:
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message) -> None:
     print('cmd_start')
-    await message.reply('Это бот для локального завуска SD.\n/opt\n/gen\n/help', reply_markup=getStart())
+    await message.reply('Это бот для локального завуска SD.\n/skip\n/opt\n/gen\n/help', reply_markup=getStart())
 
 # Получить опции
 @dp.message_handler(commands=['opt'])
@@ -198,29 +205,54 @@ async def cmd_stat(message: types.Message) -> None:
 @dp.message_handler(commands=["gen"])
 @dp.callback_query_handler(text="gen")
 async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print([getGen(0), getOpt(0)])
     print('inl_gen')
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     # Если команда /gen
     if hasattr(message, 'content_type'):
-        await bot.send_message(chat_id=message.from_user.id, text='Виды генераций', reply_markup=getGen())
+        await bot.send_message(chat_id=message.from_user.id, text='Виды генераций', reply_markup=keyboard)
     else:
         await bot.edit_message_text(
             chat_id=message.message.chat.id,
             message_id=message.message.message_id,
             text='Виды генераций',
-            reply_markup=getGen()
+            reply_markup=keyboard
         )
 
 # Генерация одной картинки
 @dp.callback_query_handler(text='gen1')
 async def inl_gen1(callback: types.CallbackQuery) -> None:
     print('inl_gen1')
+    # TODO проверка на включенность SD
+    prompt = 'cat in cap'
     payload = {
-        "prompt": "cat in car",
+        "prompt": prompt,
         "steps": 25
     }
-    response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
-    photo = base64.b64decode(response.json()['images'][0])
-    await callback.message.answer_photo(photo, caption='Готово', reply_markup=getGen())
+    send_message = await bot.send_message(callback.message.chat.id, 'Картинка генерируется. Промпт: `'+prompt+'`', parse_mode='Markdown')
+    #response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
+
+    # Создаем сессию
+    async with aiohttp.ClientSession() as session:
+        # Отправляем POST-запрос к первому сервису
+        async with session.post(local+'/sdapi/v1/txt2img', json=payload) as response_txt2img:
+            # Получаем ответ и выводим его
+            response_json = await response_txt2img.json()
+        photo = base64.b64decode(response_json['images'][0])
+        await callback.message.answer_photo(photo, caption='Готово', reply_markup=getGen())
+
+# Обработчик команды /skip
+@dp.message_handler(commands=['skip'])
+async def skip(message: types.Message):
+    print('skip')
+    # Создаем сессию
+    async with aiohttp.ClientSession() as session:
+        # Отправляем POST-запрос ко второму сервису
+        async with session.post(local + '/sdapi/v1/skip') as response:
+            # Получаем ответ и выводим его
+            response_json = await response.json()
+            print(response_json)
+            await message.answer('skip')
 
 # -------- BOT POLLING ----------
 if __name__ == '__main__':
