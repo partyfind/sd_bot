@@ -3,18 +3,19 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InputMediaPhoto
 import subprocess
 import time
-import json
 import requests
 import io
 import base64
-from PIL import Image, PngImagePlugin
+import webuiapi, datetime
 
 API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
+api = webuiapi.WebUIApi(host='127.0.0.1', port=7861)
 
 # -------- GLOBAL ----------
 
@@ -114,6 +115,17 @@ def getGen() -> InlineKeyboardMarkup:
     ])
     return gen
 
+def pilToImages(pilImages):
+    media_group = []
+    for image in pilImages:
+        image_buffer = io.BytesIO()
+        image.save(image_buffer, format='PNG')
+        image_buffer.seek(0)
+        media_group.append(types.InputMediaPhoto(media=image_buffer, reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton("Button 1", callback_data="btn1")
+        )))
+    return media_group
+
 # -------- COMMANDS ----------
 # start/help
 @dp.message_handler(commands=['help'])
@@ -188,6 +200,38 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
     photo = base64.b64decode(response.json()['images'][0])
     await callback.message.answer_photo(photo, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
+
+# Генерация нескольких картинок
+@dp.callback_query_handler(text='gen4')
+async def inl_gen4(callback: types.CallbackQuery) -> None:
+    print('inl_gen4')
+    result1 = api.txt2img(prompt="cute cat",
+                          negative_prompt="ugly, out of frame",
+                          seed=datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3],
+                          styles=["anime"],
+                          cfg_scale=8,
+                          #sampler_index='DDIM',
+                          steps=15,
+                          #enable_hr=True,
+                          #hr_scale=2,
+                          #hr_upscaler=webuiapi.HiResUpscaler.Latent,
+                          #hr_second_pass_steps=20,
+                          #hr_resize_x=1536,
+                          #hr_resize_y=1024,
+                          #denoising_strength=0.4,
+                          batch_size=2
+                          )
+    media1 = InputMediaPhoto(
+        "https://picsum.photos/200/300",  # Замените ссылками на реальные изображения
+        caption="Caption for first photo",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton("Button 1", callback_data="btn1")
+        )
+    )
+    await bot.send_media_group(chat_id=callback.from_user.id, media=pilToImages(result1.images))
+    #await callback.message.delete()
+    #await callback.message.edit_media(media=pilToImages(result1.images), reply_markup=getGen())
+    #await callback.message.answer_media_group(media=pilToImages(result1.images), reply_markup=getStart())
 
 # -------- BOT POLLING ----------
 if __name__ == '__main__':
