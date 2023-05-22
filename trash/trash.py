@@ -323,3 +323,75 @@ async def handle_stop_command(message):
 if __name__ == '__main__':
     # Запускаем бота
     executor.start_polling(dp, skip_updates=True)
+
+#____________________
+import logging
+import asyncio
+
+from aiogram import Bot, types
+from aiogram.dispatcher import Dispatcher
+from aiogram.types import ChatActions
+
+# Задаем логгер для отслеживания ошибок
+logging.basicConfig(level=logging.INFO)
+
+# Инициализируем бота и диспетчер
+bot = Bot(token='900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M')
+dp = Dispatcher(bot)
+
+
+async def export_history(chat_id):
+    # Задаем параметры запроса для получения истории сообщений
+    offset = 0
+    limit = 1000
+
+    # Создаем файл для записи истории сообщений
+    with open('history.txt', 'w', encoding='utf-8') as f:
+        # Перед началом экспорта сообщений посылаем чату сигнал о начале загрузки
+        await bot.send_chat_action(chat_id, ChatActions.TYPING)
+
+        # Постепенно получаем все сообщения чата пачками по limit штук за раз
+        while True:
+            messages = await bot.get_chat_history(chat_id, limit=limit, offset=offset)
+
+            # Если получено 0 сообщений - значит, история закончилась
+            if not messages:
+                break
+
+            # Записываем полученные сообщения в файл и инкрементируем счетчик offset
+            for message in messages:
+                f.write(f'{message.date} {message.from_user.full_name} [{message.chat.title} ({message.chat.id})]: {message.text}\n')
+
+            offset += limit
+
+        # После завершения экспорта посылаем чату сигнал об окончании загрузки
+        await bot.send_chat_action(chat_id, ChatActions.RECORD_VIDEO_NOTE)
+
+        # Отправляем файл с историей сообщений в чат
+        with open('history.txt', 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            for i in range(0, len(lines), 10):
+                message = ''.join(lines[i:i+10])
+                await bot.send_message(chat_id, message)
+
+    # Удаляем файл истории сообщений
+    os.remove('history.txt')
+
+
+# Обрабатываем команду /export
+@dp.message_handler(commands=['export'])
+async def export_command_handler(message: types.Message):
+    # Получаем ID чата, из которого отправлена команда
+    chat_id = message.chat.id
+
+    try:
+        await export_history(chat_id)
+        await message.answer('История сообщений чата успешно экспортирована в файл.')
+    except Exception as e:
+        await message.answer(f'Ошибка экспорта: {e}')
+
+
+# Запускаем бота
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(dp.start_polling())
