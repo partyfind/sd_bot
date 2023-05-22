@@ -2,8 +2,10 @@ import json
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import ParseMode
 from aiogram.utils import executor
+from aiogram.dispatcher import FSMContext
 
 bot_token = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=bot_token)
@@ -11,7 +13,7 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 # Пример JSON-объекта
-data_old = {
+data = {
   "enable_hr": False,
   "prompt": "",
   "styles": [
@@ -32,7 +34,13 @@ data_old = {
   "script_args": [],
   "alwayson_scripts": {}
 }
-data = data_old
+
+class Registration(StatesGroup):
+    for key, value in data.items():
+        print(key)
+        #{key: value} = State()
+        key = State().set(key, '123')
+
 
 # Обработчик команды /prompt
 @dp.message_handler(commands=['override_settings_restore_afterwards'])
@@ -55,14 +63,19 @@ async def get_json(message: types.Message):
     # Выводим JSON в телеграм
     await message.reply(f"<code>{json_text}</code>", parse_mode=ParseMode.HTML)
 
-@dp.message_handler(commands=['reset_json'])
-async def reset_json(message: types.Message):
-    data = data_old
-    await message.reply(f"<code>{data}</code>", parse_mode=ParseMode.HTML)
+@dp.message_handler(commands=['get_keys'])
+async def get_keys(message: types.Message, state: FSMContext):
+    #arr = []
+    #for key, value in data.items():
+    #    arr.append(data[key])
+    #print(arr)
+    async with state.proxy() as d:
+        print(d)
 
-@dp.message_handler(commands=['get_data_old'])
-async def reset_json(message: types.Message):
-    await message.reply(f"<code>{data_old}</code>", parse_mode=ParseMode.HTML)
+#@dp.message_handler(commands=['reset_json'])
+#async def reset_json(message: types.Message):
+    #data = data_old
+    #await message.reply(f"<code>{data}</code>", parse_mode=ParseMode.HTML)
 
 if __name__ == '__main__':
     executor.start_polling(dp)
