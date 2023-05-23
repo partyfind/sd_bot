@@ -20,5 +20,11 @@ data = {
   "script_args": [],
   "alwayson_scripts": {}
 }
+print('____')
+print(data)
+print('____')
+data["height"] = 256
 for key, value in data.items():
-    print(key, value)
+    print('key = '+key)
+print('____')
+print(data)
