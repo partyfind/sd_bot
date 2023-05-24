@@ -35,13 +35,6 @@ data = {
   "alwayson_scripts": {}
 }
 
-"""class Registration(StatesGroup):
-    for key, value in data.items():
-        print(key)
-        #{key: value} = State()
-        key = State().set(key, '123')"""
-
-
 # Обработчик команды /prompt
 @dp.message_handler(commands=['override_settings_restore_afterwards'])
 async def set_prompt(message: types.Message):
@@ -100,7 +93,8 @@ async def reset_json(message: types.Message):
              "script_args": [],
              "alwayson_scripts": {}
             }
-    await message.reply(f"<code>{data2}</code>", parse_mode=ParseMode.HTML)
+    json_text = json.dumps(data, indent=2)
+    await message.reply(f"<code>{json_text}</code>", parse_mode=ParseMode.HTML)
 
 if __name__ == '__main__':
     executor.start_polling(dp)

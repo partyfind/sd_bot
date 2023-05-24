@@ -11,15 +11,16 @@ import io
 import base64
 import webuiapi, datetime
 
-API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
-
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
-api = webuiapi.WebUIApi(host='127.0.0.1', port=7861)
 
 # -------- GLOBAL ----------
 
-local = 'http://127.0.0.1:7861'
+API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
+host = '127.0.0.1'
+port = '7861'
+api = webuiapi.WebUIApi(host=host, port=port)
+local = 'http://'+host+':'+port
 process = None
 sd = '❌'
 
@@ -199,7 +200,8 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     }
     response = requests.post(url=local+'/sdapi/v1/txt2img', json=payload)
     photo = base64.b64decode(response.json()['images'][0])
-    await callback.message.answer_photo(photo, caption='Готово', reply_markup=types.ReplyKeyboardRemove())
+    await callback.message.delete()
+    await callback.message.answer_photo(photo, caption='Готово', reply_markup=getGen())
 
 # Генерация нескольких картинок
 @dp.callback_query_handler(text='gen4')
