@@ -473,3 +473,87 @@ async def time_handler(message: types.Message):
 
 if __name__ == '__main__':
     executor.start_polling(dp)
+
+#___________________
+import json
+from aiogram import Bot, Dispatcher, types
+from aiogram.dispatcher import filters
+from aiogram.utils import executor
+import json
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ParseMode
+from aiogram.utils import executor
+from aiogram.dispatcher.filters import Command
+
+# Инициализация бота и диспетчера
+API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
+
+# JSON данные
+data = {
+    "enable_hr": False,
+    "prompt": "",
+    "seed": -1,
+    "override_settings_restore_afterwards": -1,
+    "subseed_strength": 0
+}
+
+# Команда /get_json для вывода списка параметров
+@dp.message_handler(commands=['get_json'])
+async def get_json(message: types.Message):
+    json_list = [f"/{key} = {value}" for key, value in data.items()]
+    json_str = '\n'.join(json_list)
+    await message.answer(f"JSON параметры:\n{json_str}")
+
+# Функция для проверки типа значения по ключу
+def check_value(key, value):
+    if isinstance(value, bool) and key != "enable_hr":
+        return False
+    elif isinstance(value, int) and key != "seed" and key != "override_settings_restore_afterwards" and key != "subseed_strength":
+        return False
+    elif isinstance(value, str) and key != "prompt":
+        return False
+    return True
+
+# Обработка команд для изменения значений в JSON
+@dp.message_handler(filters.Command(commands=['enable_hr', 'prompt', 'seed', 'override_settings_restore_afterwards', 'subseed_strength']))
+async def handle_command(message: types.Message):
+    command = message.get_command()
+    print(command)
+    key = command[1:]
+    value = data[key]
+
+    # Определение типа значения по ключу и вывод предложения для изменения
+    if check_value(key, value):
+        await message.answer(f"Вы ввели {command}, у неё значение {value}, какое новое значение?")
+    else:
+        await message.answer("Ошибка! Невозможно изменить значение данного параметра.")
+
+# Обработка введенных значений для изменения JSON
+@dp.message_handler(lambda message: True)
+async def change_json(message: types.Message):
+    print(message.get_command())
+    command = message.get_command()
+    key = command[1:]
+
+    # Если сообщение не начинается с /
+    if not command.startswith("/") or key not in data.keys():
+        return
+
+    # Определение типа введенного значения и запись в JSON
+    value = message.text[len(command) + 1:]
+    if value.lower() == "true":
+        data[key] = True
+    elif value.lower() == "false":
+        data[key] = False
+    elif value.isnumeric():
+        data[key] = int(value)
+    else:
+        data[key] = value
+
+    await message.answer(f"Значение {command} изменилось на {data[key]}")
+
+# Запуск бота
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)

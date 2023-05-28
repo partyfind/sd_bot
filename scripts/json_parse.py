@@ -15,7 +15,7 @@ dp = Dispatcher(bot, storage=storage)
 # Пример JSON-объекта
 data = {
   "enable_hr": False,
-  "prompt": "",
+  "/prompt": "",
   "styles": [
     "string"
   ],
@@ -30,13 +30,14 @@ data = {
   "width": 512,
   "height": 512,
   "override_settings": {},
-  "override_settings_restore_afterwards": True,
+  "/override_settings_restore_afterwards": True,
   "script_args": [],
   "alwayson_scripts": {}
 }
 
 # Обработчик команды /prompt
-@dp.message_handler(commands=['override_settings_restore_afterwards'])
+#@dp.message_handler(commands=['override_settings_restore_afterwards'])
+@dp.message_handler(lambda commands: commands == ['override_settings_restore_afterwards'])
 async def set_prompt(message: types.Message):
     try:
         # Получаем значение параметра из текста сообщения
@@ -58,7 +59,7 @@ async def get_json(message: types.Message):
     # Сериализуем JSON-объект в строку
     json_text = json.dumps(data, indent=2)
     # Выводим JSON в телеграм
-    await message.reply(f"<code>{json_text}</code>", parse_mode=ParseMode.HTML)
+    await message.reply(f"{json_text}", parse_mode=ParseMode.HTML)
 
 @dp.message_handler(commands=['get_keys'])
 async def get_keys(message: types.Message, state: FSMContext):
