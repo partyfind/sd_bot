@@ -1,68 +1,71 @@
+from aiogram.dispatcher import FSMContext
+from aiogram.types import Message
+from aiogram.dispatcher.filters import Text
+from aiogram.dispatcher.filters.state import State, StatesGroup
 import json
-import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters import Text
 
-logging.basicConfig(format="[%(asctime)s] %(levelname)s : %(name)s : %(message)s",
-                    level=logging.DEBUG, datefmt="%d-%m-%y %H:%M:%S")
-
-logging.getLogger('aiogram').setLevel(logging.DEBUG)
-
-logger = logging.getLogger(__name__)
-
-# Инициализация бота и диспетчера
-API_TOKEN = '5669797553:AAE3ekwARSYBLnMQrzWxTsbUFefV52gxVeI'
+API_TOKEN = '5669797553:AAE3ekwARSYBLnMQrzWxTsbUFefV52gxVeI' #'900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# JSON данные
-data = {
-    "enable_hr": 11,
-    "ppp": "",
-    "sss": -1,
-    "over": -1,
-    "sub": 0
-}
-
 class Form(StatesGroup):
-    """
-    если напрямки написать enable_hr = State(), то работает
-    """
-    enable_hr = State()
-    def __init__(self):
-        global data
-        for key in data:
-            self.__dict__[key] = State()
-        self.data = data
-
-# Команда /get_json для вывода списка параметров
-@dp.message_handler(commands=['get_json'])
-async def get_json(message: types.Message):
-    print(46)
-    print(data)
-    json_list = [f"/{key} = {value}" for key, value in data.items()]
-    json_str = '\n'.join(json_list)
-    await message.answer(f"JSON параметры:\n{json_str}")
+    pass
 
 
+# Создаем список параметров для формы
+params = ['name', 'age', 'email']
+all_states = []
 
-# Ввели любой текст @dp.message_handler(lambda message: True)
-@dp.message_handler(lambda message: True, state='*')
-async def change_json(message: types.Message, state: FSMContext):
-    print(61)
-    async with state.proxy() as data:
-        current_state = await state.get_state()
-        print(current_state)
-        data['enable_hr'] = message.text
-    await message.answer("Привет! Напиши любое enable_hr:")
-    await Form.enable_hr.set()
+# Создаем атрибуты объекта Form, названия которых соответствуют параметрам из списка
+for param in params:
+    setattr(Form, f"{param}_state", State())
+
+    # Добавляем установленные атрибуты в список всех состояний формы
+    all_states.append(getattr(Form, f"{param}_state"))
+
+@dp.message_handler(lambda message: True)
+async def process_form(message: Message, state: FSMContext):
+    # Получаем текущее состояние FSMContext (соответствующее одному из атрибутов Form)
+    current_state = await state.get_state()
+    print(36)
+    print(state)
+
+    if current_state is None:
+        # Если текущего состояния нет, переходим в первое состояние Form
+        await Form.name_state.set()
+        await message.answer("Как вас зовут?")
+    else:
+        # Используем текущее состояние для выполнения соответствующих действий
+        if current_state == Form.name_state:
+            # Сохраняем имя пользователя и переходим к следующему состоянию
+            name = message.text
+            await state.update_data(name=name)
+            await Form.age_state.set()
+            await message.answer("Сколько вам лет?")
+        elif current_state == Form.age_state:
+            # Сохраняем возраст пользователя и переходим к следующему состоянию
+            age = message.text
+            await state.update_data(age=age)
+            await Form.email_state.set()
+            await message.answer("Какой у вас email?")
+        elif current_state == Form.email_state:
+            # Сохраняем email пользователя и завершаем диалог
+            email = message.text
+            data = await state.get_data()
+
+            await message.answer("Спасибо за ваши данные!")
+            await state.finish()
 
 
+# Регистрируем обработчик с фильтром Text и состоянием Form.all_states, чтобы получать все сообщения,
+# которые соответствуют любому из состояний Form
+dp.register_message_handler(process_form, state=Form.all_states, content_types=Text)
 
 # Запуск бота
 if __name__ == '__main__':
