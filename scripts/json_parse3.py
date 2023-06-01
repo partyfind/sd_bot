@@ -6,7 +6,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext
 
 # Инициализация бота и диспетчера
-API_TOKEN = '900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+API_TOKEN = '5669797553:AAE3ekwARSYBLnMQrzWxTsbUFefV52gxVeI'#'900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
@@ -29,17 +29,12 @@ def get_json_keys():
     return arr
 
 # https://aiogram-birdi7.readthedocs.io/en/latest/examples/finite_state_machine_example.html
-"""class Form(StatesGroup):
-    text = State()
-    num = State()
-for key in data:
-    print(key)
-    setattr(Form, key, State())"""
 class Form(StatesGroup):
-    def __init__(self, data):
-        for key in data:
-            setattr(self, key, State())
-        self.data = data
+    enable_hr = State()
+    prompt = State()
+    seed = State()
+    override_settings_restore_afterwards = State()
+    subseed_strength = State()
 
 # Команда /get_json для вывода списка параметров
 @dp.message_handler(commands=['get_json'])
@@ -53,14 +48,14 @@ async def get_json(message: types.Message):
 async def change_json(message: types.Message):
     print(5444)
     print(Form)
-    str = message.text
-    if str == '/text':
-        await message.answer('Привет! Напиши любой текст:')
-        await Form.text.set()
-    elif str == '/num':
+    str2 = message.text
+    if str2 == '/prompt':
+        await message.answer('Привет! Напиши любой prompt:')
+        await Form.prompt.set()
+    elif str2 == '/num':
         await message.answer('Привет! Напиши любое число:')
         await Form.num.set()
-    elif str == '/enable_hr':
+    elif str2 == '/enable_hr':
         await message.answer('Привет! Напиши любое enable_hr:')
         await Form.enable_hr.set()
 """    for key in data:
@@ -83,14 +78,19 @@ async def gender_handler(message: types.Message, state: FSMContext):
         print(68)
         print(state)
         print(current_state)
-        for key in data:
+        for key, val in data.items():
+            print(82)
+            print(key)
             if current_state == 'Form:'+key:
-                print(data2[key])
-                data2[key] = message.text
+                print(85)
+                #print(data[val])
+                data[key] = message.text
         #if current_state == 'Form:num':
         #    print('nummm')
         #if current_state == 'Form:text':
-        #    print('texttt')
+        print(91)
+        print(data2)
+        print(data2)
         await state.reset_state()
         #data2['text'] = message.text
         await message.answer("Спасибос за "+message.text)
