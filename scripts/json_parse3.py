@@ -22,13 +22,24 @@ data = {
 }
 
 # https://aiogram-birdi7.readthedocs.io/en/latest/examples/finite_state_machine_example.html
-class Form(StatesGroup):
+class Form2(StatesGroup):
     enable_hr = State()
     prompt = State()
     seed = State()
     override_settings_restore_afterwards = State()
     subseed_strength = State()
 
+# Dynamically create a new class with the desired attributes
+state_classes = {}
+for key in data:
+    state_classes[key] = State()
+
+# Inherit from the dynamically created class
+Form = type('Form', (StatesGroup,), state_classes)
+
+#Form = type("Form", (StatesGroup,), data)
+#form = Form(data)
+#print(form)
 # Команда /get_json для вывода списка параметров
 @dp.message_handler(commands=['get_json'])
 async def get_json(message: types.Message):
@@ -63,8 +74,9 @@ async def change_json(message: types.Message):
         state_names = [attr for attr in attrs if isinstance(getattr(Form, attr), State)]
         print(state_names)
         if nam in state_names:
-            state_name = getattr(Form, nam)
-        await state_name.set()
+            await getattr(Form, nam).set()
+        else:
+            print('ОШибка какая-то')
 """    for key in data:
         # Если ключ json равен вводимой команде И остальное пусто (TODO оптимизировать проверку на пустоту)
         if key == str.split()[0][1:] and str.split()[1:] == []:
