@@ -9,17 +9,18 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext
 
-API_TOKEN = '5669797553:AAE3ekwARSYBLnMQrzWxTsbUFefV52gxVeI' #'900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
+API_TOKEN = "5669797553:AAE3ekwARSYBLnMQrzWxTsbUFefV52gxVeI"  #'900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M'
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+
 
 class Form(StatesGroup):
     pass
 
 
 # Создаем список параметров для формы
-params = ['name', 'age', 'email']
+params = ["name", "age", "email"]
 all_states = []
 
 # Создаем атрибуты объекта Form, названия которых соответствуют параметрам из списка
@@ -28,6 +29,7 @@ for param in params:
 
     # Добавляем установленные атрибуты в список всех состояний формы
     all_states.append(getattr(Form, f"{param}_state"))
+
 
 @dp.message_handler(lambda message: True)
 async def process_form(message: Message, state: FSMContext):
@@ -68,5 +70,5 @@ async def process_form(message: Message, state: FSMContext):
 dp.register_message_handler(process_form, state=Form.all_states, content_types=Text)
 
 # Запуск бота
-if __name__ == '__main__':
+if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
