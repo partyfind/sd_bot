@@ -1,6 +1,9 @@
 # 900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
 # https://docs.aiogram.dev/en/latest/
 from aiogram import Bot, Dispatcher, types
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
 from aiogram.utils import executor
 from aiogram.types import (
     InlineKeyboardButton,
@@ -21,16 +24,77 @@ from typing import Union
 API_TOKEN = "900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M"
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
 # -------- GLOBAL ----------
 
 local = "http://127.0.0.1:7861"
 process = None
 sd = "❌"
+# -------- schema
+data = {
+    "enable_hr": False,
+    "denoising_strength": 0,
+    "firstphase_width": 0,
+    "firstphase_height": 0,
+    "hr_scale": 2,
+    "hr_upscaler": "string",
+    "hr_second_pass_steps": 0,
+    "hr_resize_x": 0,
+    "hr_resize_y": 0,
+    "prompt": "",
+    "styles": ["string"],
+    "seed": -1,
+    "subseed": -1,
+    "subseed_strength": 0,
+    "seed_resize_from_h": -1,
+    "seed_resize_from_w": -1,
+    "sampler_name": "string",
+    "batch_size": 1,
+    "n_iter": 1,
+    "steps": 50,
+    "cfg_scale": 7,
+    "width": 512,
+    "height": 512,
+    "restore_faces": False,
+    "tiling": False,
+    "do_not_save_samples": False,
+    "do_not_save_grid": False,
+    "negative_prompt": "string",
+    "eta": 0,
+    "s_min_uncond": 0,
+    "s_churn": 0,
+    "s_tmax": 0,
+    "s_tmin": 0,
+    "s_noise": 1,
+    "override_settings": {},
+    "override_settings_restore_afterwards": True,
+    "script_args": [],
+    "sampler_index": "Euler",
+    "script_name": "string",
+    "send_images": True,
+    "save_images": False,
+    "alwayson_scripts": {},
+}
+
+# -------- CLASSES ----------
+
+# https://aiogram-birdi7.readthedocs.io/en/latest/examples/finite_state_machine_example.html
+# Dynamically create a new class with the desired attributes
+state_classes = {}
+for key in data:
+    state_classes[key] = State()
+
+# Inherit from the dynamically created class
+Form = type("Form", (StatesGroup,), state_classes)
 
 # -------- FUNCTIONS ----------
 
+def getJson():
+    json_list = [f"/{key} = {value}" for key, value in data.items()]
+    json_str = "\n".join(json_list)
+    return json_str
 
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
@@ -105,11 +169,11 @@ def getStart(returnAll=1) -> InlineKeyboardMarkup:
         InlineKeyboardButton("gen", callback_data="gen"),
         InlineKeyboardButton("skip", callback_data="skip"),
         InlineKeyboardButton("status", callback_data="status"),
-        InlineKeyboardButton("help", callback_data="help"),
+        InlineKeyboardButton("help", callback_data="help")
     ]
-    st = InlineKeyboardMarkup(inline_keyboard=[keys])
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
-        return st
+        return keyAll
     else:
         return keys
 
@@ -119,11 +183,24 @@ def getOpt(returnAll=1) -> InlineKeyboardMarkup:
     keys = [
         InlineKeyboardButton("scripts", callback_data="scripts"),
         InlineKeyboardButton("settings", callback_data="settings"),
-        InlineKeyboardButton("prompt", callback_data="prompt"),
+        InlineKeyboardButton("prompt", callback_data="prompt")
     ]
-    opt = InlineKeyboardMarkup(inline_keyboard=[keys])
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
-        return opt
+        return keyAll
+    else:
+        return keys
+
+
+# Меню настроек
+def getSet(returnAll=1) -> InlineKeyboardMarkup:
+    keys = [
+        InlineKeyboardButton("change_param", callback_data="change_param"),
+        InlineKeyboardButton("reset_param", callback_data="reset_param")
+    ]
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return keyAll
     else:
         return keys
 
@@ -135,11 +212,11 @@ def getGen(returnAll=1) -> InlineKeyboardMarkup:
         InlineKeyboardButton("gen4", callback_data="gen4"),
         InlineKeyboardButton("gen10", callback_data="gen10"),
         InlineKeyboardButton("gen_hr", callback_data="gen_hr"),
-        InlineKeyboardButton("gen_hr4", callback_data="gen_hr4"),
+        InlineKeyboardButton("gen_hr4", callback_data="gen_hr4")
     ]
-    gen = InlineKeyboardMarkup(inline_keyboard=[keys])
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
-        return gen
+        return keyAll
     else:
         return keys
 
@@ -256,6 +333,39 @@ async def cmd_stat(message: types.Message) -> None:
     await send_message.edit_text("Готово", reply_markup=keyboard)
 
 
+# Вызов settings
+@dp.message_handler(commands=["settings"])
+@dp.callback_query_handler(text="settings")
+async def inl_settings(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("inl_settings")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    txt = "Настройки"
+    # Если команда /settings
+    if hasattr(message, "content_type"):
+        await bot.send_message(
+            chat_id=message.from_user.id, text=txt, reply_markup=keyboard
+        )
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text=txt,
+            reply_markup=keyboard
+        )
+
+
+# Вызов change_param
+@dp.callback_query_handler(text="change_param")
+async def inl_change_param(callback: types.CallbackQuery) -> None:
+    print("inl_change_param")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    json_list = [f"/{key} = {value}" for key, value in data.items()]
+    json_str = "\n".join(json_list)
+    await callback.message.edit_text(
+        f"JSON параметры:\n{json_str}", reply_markup=keyboard
+    )
+
+
 # Вызов меню генераций getGen
 @dp.message_handler(commands=["gen"])
 @dp.callback_query_handler(text="gen")
@@ -357,58 +467,43 @@ async def inl_skip(message: Union[types.Message, types.CallbackQuery]) -> None:
                     reply_markup=getStart(),
                 )
 
+# Ввели любой текст
+@dp.message_handler(lambda message: True)
+async def change_json(message: types.Message):
+    str2 = message.text
+    nam = str2.split()[0][1:]
+    attrs = dir(Form)
+    state_names = [attr for attr in attrs if isinstance(getattr(Form, attr), State)]
+    args = message.get_args()
+    if nam in state_names:
+        if args == "":
+            await message.answer("Напиши любое " + nam)
+            if nam in state_names:
+                await getattr(Form, nam).set()
+            else:
+                print("Ошибка какая-то")
+        else:
+            data[nam] = args
+            await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
+
+# Ввели ответ на change_json
+@dp.message_handler(state=Form)
+async def answer_handler(message: types.Message, state: FSMContext):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    current_state = await state.get_state()  # Form:команда
+    for key, val in data.items():
+        if current_state == "Form:" + key:
+            data[key] = message.text
+            break
+    await state.reset_state()
+    await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
+
+
 
 # -------- BOT POLLING ----------
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
 
-# -------- schema
-"""{
-  "enable_hr": false,
-  "denoising_strength": 0,
-  "firstphase_width": 0,
-  "firstphase_height": 0,
-  "hr_scale": 2,
-  "hr_upscaler": "string",
-  "hr_second_pass_steps": 0,
-  "hr_resize_x": 0,
-  "hr_resize_y": 0,
-  "prompt": "",
-  "styles": [
-    "string"
-  ],
-  "seed": -1,
-  "subseed": -1,
-  "subseed_strength": 0,
-  "seed_resize_from_h": -1,
-  "seed_resize_from_w": -1,
-  "sampler_name": "string",
-  "batch_size": 1,
-  "n_iter": 1,
-  "steps": 50,
-  "cfg_scale": 7,
-  "width": 512,
-  "height": 512,
-  "restore_faces": false,
-  "tiling": false,
-  "do_not_save_samples": false,
-  "do_not_save_grid": false,
-  "negative_prompt": "string",
-  "eta": 0,
-  "s_min_uncond": 0,
-  "s_churn": 0,
-  "s_tmax": 0,
-  "s_tmin": 0,
-  "s_noise": 1,
-  "override_settings": {},
-  "override_settings_restore_afterwards": true,
-  "script_args": [],
-  "sampler_index": "Euler",
-  "script_name": "string",
-  "send_images": true,
-  "save_images": false,
-  "alwayson_scripts": {}
-}"""
 # -------- COPYRIGHT ----------
 # Мишген
 # join https://t.me/mishgenai
