@@ -43,12 +43,17 @@ async def change_json(message: types.Message):
     nam = str2.split()[0][1:]
     attrs = dir(Form)
     state_names = [attr for attr in attrs if isinstance(getattr(Form, attr), State)]
+    args = message.get_args()
     if nam in state_names:
-        await message.answer('Напиши любое '+nam)
-        if nam in state_names:
-            await getattr(Form, nam).set()
+        if args == '':
+            await message.answer('Напиши любое '+nam)
+            if nam in state_names:
+                await getattr(Form, nam).set()
+            else:
+                print('Ошибка какая-то')
         else:
-            print('ОШибка какая-то')
+            data[nam] = args
+            await message.answer(nam+' = '+args+'\n\n/get_json')
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
@@ -57,7 +62,6 @@ async def answer_handler(message: types.Message, state: FSMContext):
         current_state = await state.get_state() # Form:команда
         for key, val in data.items():
             if current_state == 'Form:'+key:
-                print(85)
                 data[key] = message.text
                 break
         await state.reset_state()

@@ -557,3 +557,15 @@ async def change_json(message: types.Message):
 # Запуск бота
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+#___________________
+@dp.message_handler(state=Form)
+async def answer_handler(message: types.Message):
+    # Получаем аргументы команды
+    args = message.get_args()
+    if args:
+        # Если аргументы есть, выводим их
+        print(args)
+        await message.reply(f"Вы ввели '/text {args}'")
+    else:
+        # Если аргументов нет, выводим сообщение об ошибке
+        await message.reply("/text пуст")
