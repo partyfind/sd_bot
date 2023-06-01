@@ -21,13 +21,6 @@ data = {
     "subseed_strength": 0
 }
 
-#TODO оптимизировать
-def get_json_keys():
-    arr = []
-    for key, val in data.items():
-        arr.append(key)
-    return arr
-
 # https://aiogram-birdi7.readthedocs.io/en/latest/examples/finite_state_machine_example.html
 class Form(StatesGroup):
     enable_hr = State()
@@ -49,6 +42,12 @@ async def change_json(message: types.Message):
     print(5444)
     print(Form)
     str2 = message.text
+    print(45)
+    print(str2.split()[0]) #/enable_hr
+    print(str2.split()[0][1:]) #enable_hr
+    print(str2.split()[1:])
+    print(49)
+    nam = str2.split()[0][1:]
     if str2 == '/prompt':
         await message.answer('Привет! Напиши любой prompt:')
         await Form.prompt.set()
@@ -57,7 +56,15 @@ async def change_json(message: types.Message):
         await Form.num.set()
     elif str2 == '/enable_hr':
         await message.answer('Привет! Напиши любое enable_hr:')
-        await Form.enable_hr.set()
+        print(58)
+        attrs = dir(Form)
+        print(attrs)
+        print(attrs[0])
+        state_names = [attr for attr in attrs if isinstance(getattr(Form, attr), State)]
+        print(state_names)
+        if nam in state_names:
+            state_name = getattr(Form, nam)
+        await state_name.set()
 """    for key in data:
         # Если ключ json равен вводимой команде И остальное пусто (TODO оптимизировать проверку на пустоту)
         if key == str.split()[0][1:] and str.split()[1:] == []:
