@@ -32,36 +32,36 @@ dp = Dispatcher(bot, storage=storage)
 local = "http://127.0.0.1:7861"
 process = None
 sd = "❌"
-# -------- schema
+# TODO брать динамически из http://127.0.0.1:7861/openapi.json #/components/schemas/StableDiffusionProcessingTxt2Img
 data = {
-    "enable_hr": False,
+    "enable_hr": "False",
     "denoising_strength": 0,
     "firstphase_width": 0,
     "firstphase_height": 0,
     "hr_scale": 2,
-    "hr_upscaler": "string",
+    "hr_upscaler": "R-ESRGAN 4x+", #TODO список
     "hr_second_pass_steps": 0,
     "hr_resize_x": 0,
     "hr_resize_y": 0,
-    "prompt": "",
-    "styles": ["string"],
+    "prompt": "cat in car",
+    #"styles": ["string"],
     "seed": -1,
     "subseed": -1,
     "subseed_strength": 0,
     "seed_resize_from_h": -1,
     "seed_resize_from_w": -1,
-    "sampler_name": "string",
+    "sampler_name": "Euler a", #TODO список
     "batch_size": 1,
     "n_iter": 1,
-    "steps": 50,
+    "steps": 25,
     "cfg_scale": 7,
     "width": 512,
     "height": 512,
-    "restore_faces": False,
-    "tiling": False,
-    "do_not_save_samples": False,
-    "do_not_save_grid": False,
-    "negative_prompt": "string",
+    "restore_faces": "False",
+    "tiling": "False",
+    "do_not_save_samples":  "False",
+    "do_not_save_grid":  "False",
+    "negative_prompt": "",
     "eta": 0,
     "s_min_uncond": 0,
     "s_churn": 0,
@@ -69,14 +69,16 @@ data = {
     "s_tmin": 0,
     "s_noise": 1,
     "override_settings": {},
-    "override_settings_restore_afterwards": True,
-    "script_args": [],
-    "sampler_index": "Euler",
-    "script_name": "string",
-    "send_images": True,
-    "save_images": False,
-    "alwayson_scripts": {},
+    "override_settings_restore_afterwards": "True",
+    "script_args": [""],
+    "sampler_index": "Euler", #TODO список
+    #"script_name": "string",
+    "send_images": "True",
+    "save_images":  "False",
+    "alwayson_scripts": {}
 }
+
+dataOld = data.copy()
 
 # -------- CLASSES ----------
 
@@ -248,14 +250,16 @@ async def cmd_opt(message: types.Message) -> None:
 @dp.callback_query_handler(text="opt")
 async def inl_opt(callback: types.CallbackQuery) -> None:
     print("inl_opt")
-    await callback.message.edit_text("Опции", reply_markup=getOpt())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getOpt(0), getStart(0)])
+    await callback.message.edit_text("Опции", reply_markup=keyboard)
 
 
 # Получить опции inline
 @dp.callback_query_handler(text="help")
 async def inl_help(callback: types.CallbackQuery) -> None:
     print("inl_help")
-    await callback.message.edit_text("Опции", reply_markup=getOpt())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getOpt(0), getStart(0)])
+    await callback.message.edit_text("Опции", reply_markup=keyboard)
 
 
 # Запуск/Остановка SD. Завязываемся на глобальную иконку sd
@@ -365,6 +369,28 @@ async def inl_change_param(callback: types.CallbackQuery) -> None:
         f"JSON параметры:\n{json_str}", reply_markup=keyboard
     )
 
+# Вызов reset_param, сброс JSON
+@dp.message_handler(commands=["reset_param"])
+@dp.callback_query_handler(text="reset_param")
+async def inl_reset_param(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("inl_reset_param")
+    global data
+    data = dataOld
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    txt = f"JSON сброшен\n{getJson()}"
+    # Если команда /reset_param
+    if hasattr(message, "content_type"):
+        await bot.send_message(
+            chat_id=message.from_user.id, text=txt, reply_markup=keyboard
+        )
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text=txt,
+            reply_markup=keyboard,
+        )
+
 
 # Вызов меню генераций getGen
 @dp.message_handler(commands=["gen"])
@@ -385,32 +411,35 @@ async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
             reply_markup=keyboard,
         )
 
-
 # Генерация одной картинки
+#TODO gen4/gen10
 @dp.callback_query_handler(text="gen1")
+@dp.callback_query_handler(text="gen4")
+@dp.callback_query_handler(text="gen10")
 async def inl_gen1(callback: types.CallbackQuery) -> None:
     print("inl_gen1")
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
-    # TODO проверка на включенность SD
-    prompt = "cat in cap"
-    payload = {"prompt": prompt, "steps": 25}
-    await bot.send_message(
-        callback.message.chat.id,
-        "Картинка генерируется. Промпт: `" + prompt + "`",
-        parse_mode="Markdown",
-    )
-    # Создаем сессию
-    async with aiohttp.ClientSession() as session:
-        # Отправляем POST-запрос к первому сервису
-        async with session.post(
-            local + "/sdapi/v1/txt2img", json=payload
-        ) as response_txt2img:
-            # Получаем ответ и выводим его
-            response_json = await response_txt2img.json()
-        photo = base64.b64decode(response_json["images"][0])
-        await callback.message.answer_photo(
-            photo, caption="Готово", reply_markup=keyboard
+    if callback.data == 'gen1':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
+        # TODO проверка на включенность SD
+        global data
+        await bot.send_message(
+            callback.message.chat.id,
+            "Картинка генерируется. Промпт: `" + data['prompt'] + "`",
+            parse_mode="Markdown",
         )
+        # Создаем сессию
+        async with aiohttp.ClientSession() as session:
+            # Отправляем POST-запрос к первому сервису
+            async with session.post(
+                local + "/sdapi/v1/txt2img", json=data
+            ) as response_txt2img:
+                # Получаем ответ и выводим его
+                response_json = await response_txt2img.json()
+                #print(response_json)
+            photo = base64.b64decode(response_json["images"][0])
+            await callback.message.answer_photo(
+                photo, caption="Готово", reply_markup=keyboard
+            )
 
 
 # Обработчик команды /status
@@ -470,6 +499,7 @@ async def inl_skip(message: Union[types.Message, types.CallbackQuery]) -> None:
 # Ввели любой текст
 @dp.message_handler(lambda message: True)
 async def change_json(message: types.Message):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     str2 = message.text
     nam = str2.split()[0][1:]
     attrs = dir(Form)
