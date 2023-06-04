@@ -11,6 +11,7 @@ from aiogram.types import (
     Message,
     CallbackQuery,
 )
+import webuiapi, io
 import subprocess
 import time
 import json
@@ -28,8 +29,11 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 # -------- GLOBAL ----------
-
-local = "http://127.0.0.1:7861"
+host = '127.0.0.1'
+port = '7861'
+# create API client with custom host, port
+api = webuiapi.WebUIApi(host=host, port=port)
+local = 'http://'+host+':'+port
 process = None
 sd = "❌"
 # TODO брать динамически из http://127.0.0.1:7861/openapi.json #/components/schemas/StableDiffusionProcessingTxt2Img
@@ -92,6 +96,15 @@ for key in data:
 Form = type("Form", (StatesGroup,), state_classes)
 
 # -------- FUNCTIONS ----------
+
+def pilToImages(pilImages):
+    media_group = []
+    for image in pilImages:
+        image_buffer = io.BytesIO()
+        image.save(image_buffer, format='PNG')
+        image_buffer.seek(0)
+        media_group.append(types.InputMediaPhoto(media=image_buffer))
+    return media_group
 
 def getJson():
     json_list = [f"/{key} = {value}" for key, value in data.items()]
@@ -411,6 +424,29 @@ async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
             reply_markup=keyboard,
         )
 
+async def inl_genAll(callback):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
+    # TODO проверка на включенность SD
+    global data
+    await bot.send_message(
+        callback.message.chat.id,
+        "Картинка генерируется. Промпт: `" + data['prompt'] + "`",
+        parse_mode="Markdown",
+    )
+    # Создаем сессию
+    async with aiohttp.ClientSession() as session:
+        # Отправляем POST-запрос к первому сервису
+        async with session.post(
+            local + "/sdapi/v1/txt2img", json=data
+        ) as response_txt2img:
+            # Получаем ответ и выводим его
+            response_json = await response_txt2img.json()
+            #print(response_json)
+        photo = base64.b64decode(response_json["images"][0])
+        await callback.message.answer_photo(
+            photo, caption="Готово", reply_markup=keyboard
+        )
+
 # Генерация одной картинки
 #TODO gen4/gen10
 @dp.callback_query_handler(text="gen1")
@@ -418,28 +454,31 @@ async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
 @dp.callback_query_handler(text="gen10")
 async def inl_gen1(callback: types.CallbackQuery) -> None:
     print("inl_gen1")
+    batch_size = 1
     if callback.data == 'gen1':
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
-        # TODO проверка на включенность SD
-        global data
-        await bot.send_message(
-            callback.message.chat.id,
-            "Картинка генерируется. Промпт: `" + data['prompt'] + "`",
-            parse_mode="Markdown",
-        )
-        # Создаем сессию
-        async with aiohttp.ClientSession() as session:
-            # Отправляем POST-запрос к первому сервису
-            async with session.post(
-                local + "/sdapi/v1/txt2img", json=data
-            ) as response_txt2img:
-                # Получаем ответ и выводим его
-                response_json = await response_txt2img.json()
-                #print(response_json)
-            photo = base64.b64decode(response_json["images"][0])
-            await callback.message.answer_photo(
-                photo, caption="Готово", reply_markup=keyboard
-            )
+        batch_size = 1
+        #await inl_genAll(callback)
+    if callback.data == 'gen4':
+        batch_size = 4
+    result1 = api.txt2img(prompt="cute dog",
+                          negative_prompt="ugly, out of frame",
+                          seed=datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3],
+                          styles=["anime"],
+                          cfg_scale=8,
+                          #sampler_index='DDIM',
+                          steps=15,
+                          #enable_hr=True,
+                          #hr_scale=2,
+                          #hr_upscaler=webuiapi.HiResUpscaler.Latent,
+                          #hr_second_pass_steps=20,
+                          #hr_resize_x=1536,
+                          #hr_resize_y=1024,
+                          #denoising_strength=0.4,
+                          batch_size=batch_size
+                          )
+    print(callback)
+    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(result1.images))
+
 
 
 # Обработчик команды /status
