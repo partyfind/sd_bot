@@ -99,7 +99,7 @@ data = {"prompt":"cute dog",
         'enable_hr': 'false',
         'firstphase_width': 0,
         'firstphase_height': 0,
-        'save_images': 'false'
+        'save_images': 'true'
 }
 
 dataOld = data.copy()
@@ -488,12 +488,14 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         data['hr_resize_x'] = data['width']*2
         data['hr_resize_y'] = data['height']*2
     res = api.txt2img(**data)
-    print(callback)
-    print(res.info.seed)
+    #print(callback)
+    #print(res.info['seed'])
     await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
     await bot.send_message(
-        chat_id=callback.message.chat.id, text=data['prompt']+'\n'+data['seed'], reply_markup=keyboard
+        chat_id=callback.message.chat.id, text=data['prompt']+'\n'+str(res.info['seed']), reply_markup=keyboard
     )
+    # Чтоб не сохранялся навсегда апскейл
+    data['enable_hr'] = 'false'
 
 # Обработчик команды /status
 @dp.message_handler(commands=["status"])
@@ -568,6 +570,10 @@ async def change_json(message: types.Message):
         else:
             data[nam] = args
             await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
+    else:
+        # По-умолчанию пишем промпт сразу с текста
+        data['prompt'] = message.text
+        await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
