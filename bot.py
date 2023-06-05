@@ -37,7 +37,7 @@ local = 'http://'+host+':'+port
 process = None
 sd = "❌"
 # TODO брать динамически из http://127.0.0.1:7861/openapi.json #/components/schemas/StableDiffusionProcessingTxt2Img
-data = {
+data2 = {
     "enable_hr": "False",
     "denoising_strength": 0,
     "firstphase_width": 0,
@@ -80,6 +80,26 @@ data = {
     "send_images": "True",
     "save_images":  "False",
     "alwayson_scripts": {}
+}
+
+data = {"prompt":"cute dog",
+        "negative_prompt":"ugly, out of frame",
+        #"seed":datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3],
+        "styles":["anime"],
+        "cfg_scale":8,
+        "steps":15,
+        "seed":'-1',
+        "width":512,
+        "height":512,
+        "batch_size":1,
+        "hr_upscaler": webuiapi.HiResUpscaler.ESRGAN_4x,# https://github.com/mix1009/sdwebuiapi/blob/main/webuiapi/webuiapi.py#L24
+        "hr_scale": 2,
+        "hr_second_pass_steps": 15,
+        "denoising_strength": "0.2",
+        'enable_hr': 'false',
+        'firstphase_width': 0,
+        'firstphase_height': 0,
+        'save_images': 'false'
 }
 
 dataOld = data.copy()
@@ -452,34 +472,28 @@ async def inl_genAll(callback):
 @dp.callback_query_handler(text="gen1")
 @dp.callback_query_handler(text="gen4")
 @dp.callback_query_handler(text="gen10")
+@dp.callback_query_handler(text="gen_hr")
+@dp.callback_query_handler(text="gen_hr4")
 async def inl_gen1(callback: types.CallbackQuery) -> None:
     print("inl_gen1")
-    batch_size = 1
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     if callback.data == 'gen1':
-        batch_size = 1
-        #await inl_genAll(callback)
-    if callback.data == 'gen4':
-        batch_size = 4
-    result1 = api.txt2img(prompt="cute dog",
-                          negative_prompt="ugly, out of frame",
-                          seed=datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3],
-                          styles=["anime"],
-                          cfg_scale=8,
-                          #sampler_index='DDIM',
-                          steps=15,
-                          #enable_hr=True,
-                          #hr_scale=2,
-                          #hr_upscaler=webuiapi.HiResUpscaler.Latent,
-                          #hr_second_pass_steps=20,
-                          #hr_resize_x=1536,
-                          #hr_resize_y=1024,
-                          #denoising_strength=0.4,
-                          batch_size=batch_size
-                          )
+        data['batch_size'] = 1
+    if callback.data == 'gen4' or callback.data == 'gen_hr4':
+        data['batch_size'] = 4
+    if callback.data == 'gen10':
+        data['batch_size'] = 10
+    if callback.data == 'gen_hr' or callback.data == 'gen_hr4':
+        data['enable_hr'] = 'true'
+        data['hr_resize_x'] = data['width']*2
+        data['hr_resize_y'] = data['height']*2
+    res = api.txt2img(**data)
     print(callback)
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(result1.images))
-
-
+    print(res.info.seed)
+    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    await bot.send_message(
+        chat_id=callback.message.chat.id, text=data['prompt']+'\n'+data['seed'], reply_markup=keyboard
+    )
 
 # Обработчик команды /status
 @dp.message_handler(commands=["status"])
