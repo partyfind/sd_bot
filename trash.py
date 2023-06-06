@@ -569,3 +569,26 @@ async def answer_handler(message: types.Message):
     else:
         # Если аргументов нет, выводим сообщение об ошибке
         await message.reply("/text пуст")
+#______________
+async def inl_genAll(callback):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
+    # TODO проверка на включенность SD
+    global data
+    await bot.send_message(
+        callback.message.chat.id,
+        "Картинка генерируется. Промпт: `" + data['prompt'] + "`",
+        parse_mode="Markdown",
+    )
+    # Создаем сессию
+    async with aiohttp.ClientSession() as session:
+        # Отправляем POST-запрос к первому сервису
+        async with session.post(
+            local + "/sdapi/v1/txt2img", json=data
+        ) as response_txt2img:
+            # Получаем ответ и выводим его
+            response_json = await response_txt2img.json()
+            #print(response_json)
+        photo = base64.b64decode(response_json["images"][0])
+        await callback.message.answer_photo(
+            photo, caption="Готово", reply_markup=keyboard
+        )

@@ -17,7 +17,6 @@ import time
 import json
 import requests
 import asyncio
-import base64
 import os
 from datetime import datetime
 import aiohttp
@@ -247,13 +246,24 @@ def getOpt(returnAll=1) -> InlineKeyboardMarkup:
     else:
         return keys
 
+# Меню скриптов
+def getScripts(returnAll=1) -> InlineKeyboardMarkup:
+    keys = [
+        InlineKeyboardButton("get_lora", callback_data="get_lora"),
+        InlineKeyboardButton("seed2img", callback_data="seed2img")
+    ]
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return keyAll
+    else:
+        return keys
+
 
 # Меню настроек
 def getSet(returnAll=1) -> InlineKeyboardMarkup:
     keys = [
         InlineKeyboardButton("change_param", callback_data="change_param"),
-        InlineKeyboardButton("reset_param", callback_data="reset_param"),
-        InlineKeyboardButton("seed2img", callback_data="seed2img")
+        InlineKeyboardButton("reset_param", callback_data="reset_param")
     ]
     keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
@@ -296,18 +306,15 @@ async def cmd_start(message: types.Message) -> None:
 
 # Получить опции
 @dp.message_handler(commands=["opt"])
-async def cmd_opt(message: types.Message) -> None:
-    print("cmd_opt")
-    await message.reply("Опции", reply_markup=getOpt())
-
-
-# Получить опции inline
 @dp.callback_query_handler(text="opt")
-async def inl_opt(callback: types.CallbackQuery) -> None:
-    print("inl_opt")
+async def cmd_opt(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("cmd_opt")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getOpt(0), getStart(0)])
-    await callback.message.edit_text("Опции", reply_markup=keyboard)
-
+    if hasattr(message, "content_type"):
+        await message.reply("Опции", reply_markup=keyboard)
+    else:
+        print("inl_opt")
+        await message.message.edit_text("Опции", reply_markup=keyboard)
 
 # Получить опции inline
 @dp.callback_query_handler(text="help")
@@ -315,7 +322,6 @@ async def inl_help(callback: types.CallbackQuery) -> None:
     print("inl_help")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getOpt(0), getStart(0)])
     await callback.message.edit_text("Опции", reply_markup=keyboard)
-
 
 # Запуск/Остановка SD. Завязываемся на глобальную иконку sd
 @dp.callback_query_handler(text="sd")
@@ -345,7 +351,6 @@ async def inl_sd(callback: types.CallbackQuery) -> None:
             "SD запущена" + getTxt(), reply_markup=getStart()
         )
 
-
 # Остановка SD по /stop
 @dp.message_handler(commands=["stop"])
 async def cmd_stop(message: types.Message) -> None:
@@ -359,13 +364,11 @@ async def cmd_stop(message: types.Message) -> None:
         chat_id=message.from_user.id, text="SD остановлена", reply_markup=getOpt()
     )
 
-
 async def send_time(background_task: asyncio.Task):
     while True:
         current_time = datetime.now().strftime("%H:%M:%S")
         print(current_time)
         await asyncio.sleep(1)
-
 
 # Проверка прогресса
 @dp.message_handler(commands=["stat"])
@@ -391,7 +394,6 @@ async def cmd_stat(message: types.Message) -> None:
         await send_message.edit_text(e, reply_markup=keyboard)
     await send_message.edit_text("Готово", reply_markup=keyboard)
 
-
 # Вызов settings
 @dp.message_handler(commands=["settings"])
 @dp.callback_query_handler(text="settings")
@@ -412,6 +414,25 @@ async def inl_settings(message: Union[types.Message, types.CallbackQuery]) -> No
             reply_markup=keyboard
         )
 
+# Вызов script
+@dp.message_handler(commands=["scripts"])
+@dp.callback_query_handler(text="scripts")
+async def inl_scripts(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("inl_scripts")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getScripts(0), getStart(0)])
+    txt = "Скрипты"
+    # Если команда /settings
+    if hasattr(message, "content_type"):
+        await bot.send_message(
+            chat_id=message.from_user.id, text=txt, reply_markup=keyboard
+        )
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text=txt,
+            reply_markup=keyboard
+        )
 
 # Вызов change_param
 @dp.callback_query_handler(text="change_param")
@@ -446,7 +467,6 @@ async def inl_reset_param(message: Union[types.Message, types.CallbackQuery]) ->
             reply_markup=keyboard,
         )
 
-
 # Вызов меню генераций getGen
 @dp.message_handler(commands=["gen"])
 @dp.callback_query_handler(text="gen")
@@ -464,29 +484,6 @@ async def inl_gen(message: Union[types.Message, types.CallbackQuery]) -> None:
             message_id=message.message.message_id,
             text="Виды генераций",
             reply_markup=keyboard,
-        )
-
-async def inl_genAll(callback):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
-    # TODO проверка на включенность SD
-    global data
-    await bot.send_message(
-        callback.message.chat.id,
-        "Картинка генерируется. Промпт: `" + data['prompt'] + "`",
-        parse_mode="Markdown",
-    )
-    # Создаем сессию
-    async with aiohttp.ClientSession() as session:
-        # Отправляем POST-запрос к первому сервису
-        async with session.post(
-            local + "/sdapi/v1/txt2img", json=data
-        ) as response_txt2img:
-            # Получаем ответ и выводим его
-            response_json = await response_txt2img.json()
-            #print(response_json)
-        photo = base64.b64decode(response_json["images"][0])
-        await callback.message.answer_photo(
-            photo, caption="Готово", reply_markup=keyboard
         )
 
 # Генерация одной картинки
@@ -586,6 +583,37 @@ async def inl_skip(message: Union[types.Message, types.CallbackQuery]) -> None:
                     text="Виды генераций",
                     reply_markup=getStart(),
                 )
+
+# Получить LORA
+@dp.message_handler(commands=["get_lora"])
+@dp.callback_query_handler(text='get_lora')
+async def getLora(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print('getLora')
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getScripts(0), getStart(0)])
+    # Путь к папке "Lora"
+    path = 'models/Lora'
+
+    # Получаем список файлов в папке
+    file_list = os.listdir(path)
+
+    # Фильтруем файлы, выбирая только те, которые заканчиваются на ".safetensors"
+    lora_files = [file_name for file_name in file_list if file_name.endswith('.safetensors')]
+
+    # Выводим список файлов, отформатированный в нужном формате
+    arr = ''
+    for file_name in lora_files:
+        name = file_name.replace('.safetensors', '')
+        arr = arr + f'`<lora:{name}:1>`\n\n'
+    if hasattr(message, "content_type"):
+        await bot.send_message(chat_id=message.from_user.id, text=arr, reply_markup=keyboard, parse_mode='Markdown')
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text="Список LORA\n"+arr,
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+            )
 
 # Ввели любой текст
 @dp.message_handler(lambda message: True)
