@@ -18,6 +18,7 @@ import json
 import requests
 import asyncio
 import base64
+import os
 from datetime import datetime
 import aiohttp
 from typing import Union
@@ -131,6 +132,26 @@ def getJson():
     json_str = "\n".join(json_list)
     return json_str
 
+# TODO брать из get_next_sequence_number
+def getNameImage(seed):
+    formatted_date = datetime.today().strftime('%Y-%m-%d')
+    # TODO брать из outdir_txt2img_samples
+    img_dir = "C:/html/stable-diffusion-webui/outputs/txt2img-images/" + formatted_date
+    #seed = "770102060"
+    files = [f for f in os.listdir(img_dir) if seed in f]
+    print(img_dir)
+    if len(files) > 0:
+        last_file = sorted(files)[-1]
+        last_file_name = os.path.splitext(last_file)[0]
+        last_file_num = int(last_file_name.split("-")[0]) + 1
+        print(f"{last_file_num:05d}-{seed}")
+        return f"{last_file_num:05d}-{seed}"
+    else:
+        print("Папка пуста")
+    if len(os.listdir(img_dir)) == 0:
+        print("00000-" + seed)
+        return "00000-" + seed
+
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
     global process
@@ -231,7 +252,8 @@ def getOpt(returnAll=1) -> InlineKeyboardMarkup:
 def getSet(returnAll=1) -> InlineKeyboardMarkup:
     keys = [
         InlineKeyboardButton("change_param", callback_data="change_param"),
-        InlineKeyboardButton("reset_param", callback_data="reset_param")
+        InlineKeyboardButton("reset_param", callback_data="reset_param"),
+        InlineKeyboardButton("seed2img", callback_data="seed2img")
     ]
     keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
     if returnAll == 1:
@@ -488,8 +510,8 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         data['hr_resize_x'] = data['width']*2
         data['hr_resize_y'] = data['height']*2
     res = api.txt2img(**data)
-    #print(callback)
-    #print(res.info['seed'])
+    print(callback)
+    print(res)
     await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
     await bot.send_message(
         chat_id=callback.message.chat.id, text=data['prompt']+'\n'+str(res.info['seed']), reply_markup=keyboard
@@ -497,7 +519,21 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     # Чтоб не сохранялся навсегда апскейл
     data['enable_hr'] = 'false'
 
+# Обработчик команды /seed2img
+@dp.message_handler(commands=["seed2img"])
+@dp.callback_query_handler(text="seed2img")
+async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
+    if hasattr(message, "content_type"):
+        print(message.get_args())
+        print(message.text)
+        print(getNameImage(message.text))
+    else:
+        #TODO список сидов?
+        print(message.message.get_args())
+        print(getNameImage(message.message.text))
+
 # Обработчик команды /status
+# TODO async
 @dp.message_handler(commands=["status"])
 @dp.callback_query_handler(text="status")
 async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
