@@ -1,4 +1,5 @@
 # 900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M
+# C:\Users\nespa\AppData\Local\Programs\Python\Python310\python.exe bot_sd/bot.py
 # https://docs.aiogram.dev/en/latest/
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -29,6 +30,8 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 # -------- GLOBAL ----------
+# TODO брать из outdir_txt2img_samples
+img_dir = "C:/html/stable-diffusion-webui/outputs/txt2img-images/"
 host = '127.0.0.1'
 port = '7861'
 # create API client with custom host, port
@@ -132,24 +135,32 @@ def getJson():
     return json_str
 
 # TODO брать из get_next_sequence_number
-def getNameImage(seed):
+def getNameImage(seed, next = 1):
+    print(137)
+    print(seed)
     formatted_date = datetime.today().strftime('%Y-%m-%d')
     # TODO брать из outdir_txt2img_samples
-    img_dir = "C:/html/stable-diffusion-webui/outputs/txt2img-images/" + formatted_date
+    img_way = img_dir + formatted_date
     #seed = "770102060"
-    files = [f for f in os.listdir(img_dir) if seed in f]
-    print(img_dir)
+    files = [f for f in os.listdir(img_way) if seed in f]
+    print(img_way)
     if len(files) > 0:
         last_file = sorted(files)[-1]
         last_file_name = os.path.splitext(last_file)[0]
-        last_file_num = int(last_file_name.split("-")[0]) + 1
-        print(f"{last_file_num:05d}-{seed}")
-        return f"{last_file_num:05d}-{seed}"
+        last_file_num = int(last_file_name.split("-")[0])
+        last_file_num_next2 = last_file_num + 1
+        print(151)
+        if next == 1:
+            last_file_num_next = f"{last_file_num_next2:05d}"
+        else:
+            last_file_num_next = f"{last_file_num:05d}"
+        print(f"{last_file_num_next}-{seed}.png")
+        return f"{last_file_num_next}-{seed}.png"
     else:
         print("Папка пуста")
-    if len(os.listdir(img_dir)) == 0:
-        print("00000-" + seed)
-        return "00000-" + seed
+    if len(os.listdir(img_way)) == 0:
+        print("00000-" + seed + '.png')
+        return "00000-" + seed + '.png'
 
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
@@ -517,7 +528,7 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     data['enable_hr'] = 'false'
 
 # Обработчик команды /seed2img
-@dp.message_handler(commands=["seed2img"])
+#@dp.message_handler(commands=["seed2img"])
 @dp.callback_query_handler(text="seed2img")
 async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
     if hasattr(message, "content_type"):
@@ -528,6 +539,16 @@ async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None
         #TODO список сидов?
         print(message.message.get_args())
         print(getNameImage(message.message.text))
+
+# Ловим /seed2img с текстом после
+@dp.message_handler(lambda message: "seed2img" in message.text)
+async def seed2img_command(message: types.Message):
+    print(538)
+    print(message.get_args())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile(img_dir+getNameImage(message.get_args(), 0)), 'text s 542')
+    message.send_media_group(message.chat.id, media=media, reply_markup=keyboard)
 
 # Обработчик команды /status
 # TODO async
