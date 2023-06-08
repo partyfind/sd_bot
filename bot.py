@@ -32,6 +32,7 @@ dp = Dispatcher(bot, storage=storage)
 # -------- GLOBAL ----------
 # TODO брать из outdir_txt2img_samples
 img_dir = "C:/html/stable-diffusion-webui/outputs/txt2img-images/"
+formatted_date = datetime.today().strftime('%Y-%m-%d')
 host = '127.0.0.1'
 port = '7861'
 # create API client with custom host, port
@@ -138,7 +139,6 @@ def getJson():
 def getNameImage(seed, next = 1):
     print(137)
     print(seed)
-    formatted_date = datetime.today().strftime('%Y-%m-%d')
     # TODO брать из outdir_txt2img_samples
     img_way = img_dir + formatted_date
     #seed = "770102060"
@@ -535,6 +535,7 @@ async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None
         print(message.get_args())
         print(message.text)
         print(getNameImage(message.text))
+        await message.answer('Введи seed')
     else:
         #TODO список сидов?
         print(message.message.get_args())
@@ -543,12 +544,12 @@ async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None
 # Ловим /seed2img с текстом после
 @dp.message_handler(lambda message: "seed2img" in message.text)
 async def seed2img_command(message: types.Message):
-    print(538)
-    print(message.get_args())
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    args = message.get_args()
     media = types.MediaGroup()
-    media.attach_photo(types.InputFile(img_dir+getNameImage(message.get_args(), 0)), 'text s 542')
-    message.send_media_group(message.chat.id, media=media, reply_markup=keyboard)
+    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+getNameImage(args, 0)), args)
+    await bot.send_media_group(chat_id=message.chat.id, media=media)
+    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
 
 # Обработчик команды /status
 # TODO async
