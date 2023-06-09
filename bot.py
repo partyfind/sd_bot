@@ -135,30 +135,34 @@ def getJson():
     json_str = "\n".join(json_list)
     return json_str
 
+# Поиск картинки в папках и возврат полного пути если нашёл
 # TODO брать из get_next_sequence_number
-def getNameImage(seed, next = 1):
-    print('getNameImage')
-    # TODO брать из outdir_txt2img_samples
+# TODO возвращать список seed`ов
+async def sendImagesFromSeed(seed, message):
+    print('sendImagesFromSeed')
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    args = message.get_args()
     img_way = img_dir + formatted_date
     print(type(seed))
     files = [f for f in os.listdir(img_way) if seed in f]
     print(img_way)
+    way = ''
     if len(files) > 0:
         last_file = sorted(files)[-1]
         last_file_name = os.path.splitext(last_file)[0]
         last_file_num = int(last_file_name.split("-")[0])
-        last_file_num_next2 = last_file_num + 1
-        print(151)
-        if next == 1:
-            last_file_num_next = f"{last_file_num_next2:05d}"
-        else:
-            last_file_num_next = f"{last_file_num:05d}"
-        print(f"{last_file_num_next}-{seed}.png")
-        return f"{last_file_num_next}-{seed}.png"
+        last_file_num_next = f"{last_file_num:05d}"
+        way = f"{last_file_num_next}-{seed}.png"
     else:
         print("Папка пуста")
     if len(os.listdir(img_way)) == 0:
-        return "00000-" + seed + '.png'
+        way = "00000-" + seed + '.png'
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+way), args)
+    await bot.send_media_group(chat_id=message.chat.id, media=media)
+    await bot.send_document(message.from_user.id, media=media)
+    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
+
 
 # Запуск SD через subprocess и запись в глобальную переменную process
 def start_sd():
@@ -299,7 +303,7 @@ def getGen(returnAll=1) -> InlineKeyboardMarkup:
 
 # Меню текста
 def getTxt():
-    return "\n/start\n/opt\n/gen\n/skip\n/status\n/help"
+    return "/start /opt /gen /skip /status /seed2img /help"
 
 
 # -------- COMMANDS ----------
@@ -510,7 +514,9 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     if callback.data == 'gen4' or callback.data == 'gen_hr4':
         data['batch_size'] = 4
     if callback.data == 'gen10':
-        data['batch_size'] = 10
+        # пи%дец какая заглушка из-за ошибки Media group must include 2-10 items as written in docs, but also it works with 1 element
+        # надо убирать где-то отображения грида
+        data['batch_size'] = 9
     if callback.data == 'gen_hr' or callback.data == 'gen_hr4':
         data['enable_hr'] = 'true'
         data['hr_resize_x'] = data['width']*2
@@ -518,29 +524,32 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     res = api.txt2img(**data)
     print(callback)
     print(res)
+    print(res.info['all_seeds'])
+
+    #TODO
+    """    # Инициализируем список файлов для отправки
+        files_to_send = ["path/to/file1", "path/to/file2", "path/to/file3",
+                         "path/to/file4", "path/to/file5", "path/to/file6",
+                         "path/to/file7", "path/to/file8", "path/to/file9",
+                         "path/to/file10"]
+    
+        # Группируем файлы InputMediaDocument в списке
+        grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in files_to_send]
+    
+        # Отправляем файлы в одном сообщении
+        await
+        bot.send_media_group(chat_id="CHAT_ID", media=grouped_files)"""
+
     await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    await bot.send_document(callback.from_user.id, pilToImages(res.images))
     await bot.send_message(
-        chat_id=callback.message.chat.id, text=data['prompt']+'\n'+str(res.info['seed']), reply_markup=keyboard
+        chat_id=callback.message.chat.id,
+        text=data['prompt']+'\n'+str(res.info['all_seeds']),
+        reply_markup=keyboard,
+        parse_mode='Markdown'
     )
     # Чтоб не сохранялся навсегда апскейл
     data['enable_hr'] = 'false'
-
-# Обработчик команды /seed2img
-#@dp.message_handler(commands=["seed2img"])
-@dp.callback_query_handler(text="seed2img")
-async def seed2imgAll(message: Union[types.Message, types.CallbackQuery]) -> None:
-    print('seed2imgAll')
-    if hasattr(message, "content_type"):
-        print(534)
-        print(message.get_args())
-        print(message.text)
-        #print(getNameImage(message.text))
-        await message.answer('Введи seed')
-    else:
-        #TODO список сидов?
-        print(541)
-        print(message.message.get_args())
-        #print(getNameImage(message.message.text))
 
 # Обработчик команды /status
 # TODO async
@@ -641,7 +650,10 @@ async def change_json(message: types.Message):
     args = message.get_args() # это 321, когда ввели /txt 321
     # Поиск команд из data
     if nam in state_names:
-        if args == None:
+        print(630)
+        print(args)
+        if args == '':
+            print(632)
             await message.answer("Напиши любое " + nam)
             if nam in state_names:
                 # Ловим ответ и пишем в data
@@ -649,24 +661,35 @@ async def change_json(message: types.Message):
             else:
                 print("Ошибка какая-то")
         else:
+            print(640)
             # /txt 321 пишем 321 в data['txt']
             data[nam] = args
+            # TODO answer поменять на edit_text
             await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
     else:
+        print(645)
         if args != None:
-            print(657)
-            # /seed2img
+            print(648)
+            print(args)
+            # /seed2img + только буквы
             if nam == 'seed2img' and args.isalpha():
-                print('seed2img + только буквы')
+                await message.answer('Введи seed')
+            # /seed2img
             if nam == 'seed2img' and args == '':
-              print('ввели /seed2img')
+                await message.answer('Введи seed')
+            # /seed2img 000-321
             if nam == 'seed2img' and (args.isdigit() or ('-' in args and all(s.isdigit() for s in args.split('-')))):
-              print('ввели /seed2img 000-321')
+                await sendImagesFromSeed(args, message)
         if text != '' and args == None:
+            print(648)
+            print(args)
+            # цифры или цифры с минусом
             if text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-'))):
-              print('цифры или цифры с минусом')
+                print('')
+            # только буквы TODO optimize
             if (not text.isdigit() or (not '-' in text and not text.isdigit())) and not (text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-')))):
-                print('только буквы')
+                data['prompt'] = message.text
+                await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
