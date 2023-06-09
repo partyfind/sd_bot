@@ -137,11 +137,10 @@ def getJson():
 
 # TODO брать из get_next_sequence_number
 def getNameImage(seed, next = 1):
-    print(137)
-    print(seed)
+    print('getNameImage')
     # TODO брать из outdir_txt2img_samples
     img_way = img_dir + formatted_date
-    #seed = "770102060"
+    print(type(seed))
     files = [f for f in os.listdir(img_way) if seed in f]
     print(img_way)
     if len(files) > 0:
@@ -159,7 +158,6 @@ def getNameImage(seed, next = 1):
     else:
         print("Папка пуста")
     if len(os.listdir(img_way)) == 0:
-        print("00000-" + seed + '.png')
         return "00000-" + seed + '.png'
 
 # Запуск SD через subprocess и запись в глобальную переменную process
@@ -530,26 +528,19 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
 # Обработчик команды /seed2img
 #@dp.message_handler(commands=["seed2img"])
 @dp.callback_query_handler(text="seed2img")
-async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
+async def seed2imgAll(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print('seed2imgAll')
     if hasattr(message, "content_type"):
+        print(534)
         print(message.get_args())
         print(message.text)
-        print(getNameImage(message.text))
+        #print(getNameImage(message.text))
         await message.answer('Введи seed')
     else:
         #TODO список сидов?
+        print(541)
         print(message.message.get_args())
-        print(getNameImage(message.message.text))
-
-# Ловим /seed2img с текстом после
-@dp.message_handler(lambda message: "seed2img" in message.text)
-async def seed2img_command(message: types.Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
-    args = message.get_args()
-    media = types.MediaGroup()
-    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+getNameImage(args, 0)), args)
-    await bot.send_media_group(chat_id=message.chat.id, media=media)
-    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
+        #print(getNameImage(message.message.text))
 
 # Обработчик команды /status
 # TODO async
@@ -637,6 +628,23 @@ async def getLora(message: Union[types.Message, types.CallbackQuery]) -> None:
             parse_mode='Markdown'
             )
 
+# Ловим /seed2img с текстом после или пустой
+@dp.message_handler(lambda message: "seed2img" in message.text)
+async def seed2img_command(message: types.Message):
+    print(545)
+    print('seed2img_command')
+    if message.get_args() == '':
+        print('688')
+        return
+    #seed2img_func
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    args = message.get_args()
+    print('args = '+args)
+    media = types.MediaGroup()
+    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+getNameImage(args, 0)), args)
+    await bot.send_media_group(chat_id=message.chat.id, media=media)
+    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
+
 # Ввели любой текст
 @dp.message_handler(lambda message: True)
 async def change_json(message: types.Message):
@@ -660,15 +668,27 @@ async def change_json(message: types.Message):
         print(message.text)
         print(nam)
         print(message.get_args())
+
+        """seed2img = text
+           /seed2img = Введи seed
+           /seed2img буквы = Введи seed
+           /seed2img цифры = проверяем все папки на наличие цифр (getNameImage), если нашли, выводим через send_media_group с списком seed
+           буквы = сохраняем data['prompt']
+           цифры и - = аналог /seed2img цифры"""
+        
         if any(char.isalpha() for char in str2):
+            print(663)
             # По-умолчанию пишем промпт сразу с текста если прилетел текст и не команда и не одни числа
             data['prompt'] = message.text
             await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
         elif any(char.isdigit() or char == '-' for char in str2):
+            print(668)
             # прилетели цифры, скорее всего это seed
+            await seed2img_command(message)
             #TODO скопировать seed2img_command, но лучше сделать отдельной функцией. Поиск картинки по сиду надо делать по всем папкам внутри img_dir
             #await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
         else:
+            print(674)
             print("Не команда, не цифры, не текст")
             await message.answer(f"Непонятная команда. Выведу на всякий случай JSON параметры:\n{getJson()}", reply_markup=keyboard)
 
@@ -683,7 +703,6 @@ async def answer_handler(message: types.Message, state: FSMContext):
             break
     await state.reset_state()
     await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
-
 
 
 # -------- BOT POLLING ----------
