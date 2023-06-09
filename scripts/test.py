@@ -1,8 +1,18 @@
 text = input("Введите текст для проверки: ")
-
-if any(char.isalpha() for char in text):
-    print(0)
-elif any(char.isdigit() or char == '-' for char in text):
-    print(1)
-else:
-    print("Ошибка: в тексте отсутствуют цифры и знак '-'.")
+def match_value(text):
+    if '-' in text:
+        tokens = text.split('-')
+        if all(token.isdigit() for token in tokens):
+            return "digit"
+    if text.isdigit():
+      return "digit"
+    if text.replace('.', '').replace(',', '').isdigit():
+      return "digit"
+print(match_value('22'))
+print(match_value('22-22'))
+print(match_value('22-22 23'))
+print(match_value('aa dd'))
+print(match_value('aa-dd'))
+print(match_value('aa2dd'))
+print(match_value('aa2dd 3e'))
+print(match_value('d-d'))

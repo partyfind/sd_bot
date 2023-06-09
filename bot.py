@@ -628,69 +628,45 @@ async def getLora(message: Union[types.Message, types.CallbackQuery]) -> None:
             parse_mode='Markdown'
             )
 
-# Ловим /seed2img с текстом после или пустой
-@dp.message_handler(lambda message: "seed2img" in message.text)
-async def seed2img_command(message: types.Message):
-    print(545)
-    print('seed2img_command')
-    if message.get_args() == '':
-        print('688')
-        return
-    #seed2img_func
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
-    args = message.get_args()
-    print('args = '+args)
-    media = types.MediaGroup()
-    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+getNameImage(args, 0)), args)
-    await bot.send_media_group(chat_id=message.chat.id, media=media)
-    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
-
 # Ввели любой текст
 @dp.message_handler(lambda message: True)
 async def change_json(message: types.Message):
+    print('change_json')
+    print(message.get_args())
+    print(type(message.get_args()))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
-    str2 = message.text
-    nam = str2.split()[0][1:]
-    attrs = dir(Form)
-    state_names = [attr for attr in attrs if isinstance(getattr(Form, attr), State)]
-    args = message.get_args()
+    text = message.text
+    nam = text.split()[0][1:] # txt из /txt 321
+    state_names = [attr for attr in dir(Form) if isinstance(getattr(Form, attr), State)]
+    args = message.get_args() # это 321, когда ввели /txt 321
+    # Поиск команд из data
     if nam in state_names:
-        if args == "":
+        if args == None:
             await message.answer("Напиши любое " + nam)
             if nam in state_names:
+                # Ловим ответ и пишем в data
                 await getattr(Form, nam).set()
             else:
                 print("Ошибка какая-то")
         else:
+            # /txt 321 пишем 321 в data['txt']
             data[nam] = args
             await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
     else:
-        print(message.text)
-        print(nam)
-        print(message.get_args())
-
-        """seed2img = text
-           /seed2img = Введи seed
-           /seed2img буквы = Введи seed
-           /seed2img цифры = проверяем все папки на наличие цифр (getNameImage), если нашли, выводим через send_media_group с списком seed
-           буквы = сохраняем data['prompt']
-           цифры и - = аналог /seed2img цифры"""
-        
-        if any(char.isalpha() for char in str2):
-            print(663)
-            # По-умолчанию пишем промпт сразу с текста если прилетел текст и не команда и не одни числа
-            data['prompt'] = message.text
-            await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
-        elif any(char.isdigit() or char == '-' for char in str2):
-            print(668)
-            # прилетели цифры, скорее всего это seed
-            await seed2img_command(message)
-            #TODO скопировать seed2img_command, но лучше сделать отдельной функцией. Поиск картинки по сиду надо делать по всем папкам внутри img_dir
-            #await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
-        else:
-            print(674)
-            print("Не команда, не цифры, не текст")
-            await message.answer(f"Непонятная команда. Выведу на всякий случай JSON параметры:\n{getJson()}", reply_markup=keyboard)
+        if args != None:
+            print(657)
+            # /seed2img
+            if nam == 'seed2img' and args.isalpha():
+                print('seed2img + только буквы')
+            if nam == 'seed2img' and args == '':
+              print('ввели /seed2img')
+            if nam == 'seed2img' and (args.isdigit() or ('-' in args and all(s.isdigit() for s in args.split('-')))):
+              print('ввели /seed2img 000-321')
+        if text != '' and args == None:
+            if text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-'))):
+              print('цифры или цифры с минусом')
+            if (not text.isdigit() or (not '-' in text and not text.isdigit())) and not (text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-')))):
+                print('только буквы')
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
