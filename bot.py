@@ -657,9 +657,20 @@ async def change_json(message: types.Message):
             data[nam] = args
             await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
     else:
-        # По-умолчанию пишем промпт сразу с текста
-        data['prompt'] = message.text
-        await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
+        print(message.text)
+        print(nam)
+        print(message.get_args())
+        if any(char.isalpha() for char in str2):
+            # По-умолчанию пишем промпт сразу с текста если прилетел текст и не команда и не одни числа
+            data['prompt'] = message.text
+            await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
+        elif any(char.isdigit() or char == '-' for char in str2):
+            # прилетели цифры, скорее всего это seed
+            #TODO скопировать seed2img_command, но лучше сделать отдельной функцией. Поиск картинки по сиду надо делать по всем папкам внутри img_dir
+            #await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
+        else:
+            print("Не команда, не цифры, не текст")
+            await message.answer(f"Непонятная команда. Выведу на всякий случай JSON параметры:\n{getJson()}", reply_markup=keyboard)
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
