@@ -11,6 +11,8 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     Message,
     CallbackQuery,
+    InputMediaDocument,
+    InputFile,
 )
 import webuiapi, io
 import subprocess
@@ -137,9 +139,10 @@ def getJson():
 
 # Поиск картинки в папках и возврат полного пути если нашёл
 # TODO брать из get_next_sequence_number
-# TODO возвращать список seed`ов
-async def sendImagesFromSeed(seed, message):
+# TODO возвращать список seed`ов если одинаковый постфикс
+async def sendImagesFromSeed(seed, message, sendMedia = 1):
     print('sendImagesFromSeed')
+    seed = str(seed)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     args = message.get_args()
     img_way = img_dir + formatted_date
@@ -157,11 +160,15 @@ async def sendImagesFromSeed(seed, message):
         print("Папка пуста")
     if len(os.listdir(img_way)) == 0:
         way = "00000-" + seed + '.png'
-    media = types.MediaGroup()
-    media.attach_photo(types.InputFile(img_dir+formatted_date+'/'+way), args)
-    await bot.send_media_group(chat_id=message.chat.id, media=media)
-    await bot.send_document(message.from_user.id, media=media)
-    await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
+    longWay = img_dir+formatted_date+'/'+way
+    if sendMedia == 1:
+        media = types.MediaGroup()
+        media.attach_photo(types.InputFile(longWay), args)
+        await bot.send_media_group(chat_id=message.chat.id, media=media)
+        await bot.send_document(message.from_user.id, media=media)
+        await bot.send_message(chat_id=message.from_user.id, text=args, reply_markup=keyboard, parse_mode='Markdown')
+    else:
+        return longWay
 
 
 # Запуск SD через subprocess и запись в глобальную переменную process
@@ -537,11 +544,16 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in files_to_send]
     
         # Отправляем файлы в одном сообщении
-        await
-        bot.send_media_group(chat_id="CHAT_ID", media=grouped_files)"""
+        await bot.send_media_group(chat_id="CHAT_ID", media=grouped_files)"""
 
     await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
-    await bot.send_document(callback.from_user.id, pilToImages(res.images))
+    filesToSend = []
+    for doc in res.info['all_seeds']:
+        docWay = await sendImagesFromSeed(doc, callback.message, 0)
+        filesToSend.append(docWay)
+    grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in filesToSend]
+    await bot.send_media_group(chat_id=callback.message.chat.id, media=grouped_files)
+    #await bot.send_document(callback.from_user.id, pilToImages(res.images))
     await bot.send_message(
         chat_id=callback.message.chat.id,
         text=data['prompt']+'\n'+str(res.info['all_seeds']),
