@@ -529,24 +529,11 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         data['hr_resize_x'] = data['width']*2
         data['hr_resize_y'] = data['height']*2
     res = api.txt2img(**data)
-    print(callback)
-    print(res)
-    print(res.info['all_seeds'])
-
-    #TODO
-    """    # Инициализируем список файлов для отправки
-        files_to_send = ["path/to/file1", "path/to/file2", "path/to/file3",
-                         "path/to/file4", "path/to/file5", "path/to/file6",
-                         "path/to/file7", "path/to/file8", "path/to/file9",
-                         "path/to/file10"]
-    
-        # Группируем файлы InputMediaDocument в списке
-        grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in files_to_send]
-    
-        # Отправляем файлы в одном сообщении
-        await bot.send_media_group(chat_id="CHAT_ID", media=grouped_files)"""
-
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    #print(callback)
+    #print(res)
+    #print(res.info['all_seeds'])
+    #await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    send_small_image()
     filesToSend = []
     for doc in res.info['all_seeds']:
         docWay = await sendImagesFromSeed(doc, callback.message, 0)
@@ -648,6 +635,32 @@ async def getLora(message: Union[types.Message, types.CallbackQuery]) -> None:
             reply_markup=keyboard,
             parse_mode='Markdown'
             )
+
+def send_small_image(image_path: str, chat_id: int) -> None:
+    print('send_small_image')
+    with Image.open(image_path) as img:
+        # Получаем размеры изображения
+        width, height = img.size
+
+        # Определяем коэффициент пропорционального изменения размера
+        ratio = min(256 / width, 256 / height)
+
+        # Вычисляем новый размер изображения
+        new_size = (round(width * ratio), round(height * ratio))
+
+        # Создаем временный файл для измененного изображения
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            # Изменяем размер изображения и сохраняем его во временный файл
+            small_img = img.resize(new_size, resample=Image.LANCZOS)
+            small_img.save(temp_file.name)
+
+            # Отправляем изображение в бота
+            with open(temp_file.name, 'rb') as small_img_file:
+                return small_img_file
+
+            # Удаляем временный файл
+            print('удалили')
+            os.remove(temp_file.name)
 
 # Ввели любой текст
 @dp.message_handler(lambda message: True)

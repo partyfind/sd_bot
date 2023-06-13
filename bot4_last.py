@@ -346,6 +346,7 @@ def get_ikb() -> InlineKeyboardMarkup:
          InlineKeyboardButton('prmpt', callback_data='prompt'),
          InlineKeyboardButton('prmpt_lxc', callback_data='prompt_lexica'),
          InlineKeyboardButton('inf', callback_data='inf'),
+         InlineKeyboardButton('inf_hr', callback_data='inf_hr'),
          InlineKeyboardButton('inf_lxc', callback_data='inf_lexica'),
          InlineKeyboardButton('optn', callback_data='option')],[
          InlineKeyboardButton('size', callback_data='size'),
@@ -450,22 +451,34 @@ async def rnd_smp(callback: types.CallbackQuery) -> None:
 
 # бесконечный рандомный цикл HR
 @dp.callback_query_handler(text='inf')
-async def inf(callback: types.CallbackQuery) -> None:
+@dp.callback_query_handler(text='inf_hr')
+async def inf_and_inf_hr(callback: types.CallbackQuery) -> None:
+    print('inf_and_inf_hr')
+    print(callback.data)
     # Отсылаем негатив, чтоб не мешался
     cur.execute("SELECT negative from prompts")
     await bot.send_message(chat_id=callback.from_user.id, text=cur.fetchall()[0])
     while True:
         print("Этот цикл продолжается бесконечно!")
         set_random(callback.from_user.id)
-        data = create_post('gen', 'hr', 0)
+        if callback.data == 'inf':
+            data = create_post('gen', '')
+        else:
+            data = create_post('gen', 'hr', 0)
         cur.execute("SELECT prompt from prompts")
         prompt = cur.fetchall()[0]
-        with open('little_dog.png', 'rb') as photo:
-            await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
-        with open('dog.png', 'rb') as photo:
-            await bot.send_document(callback.from_user.id, photo)
-            await bot.send_message(chat_id=callback.from_user.id, text=prompt)
-            await bot.send_message(chat_id=callback.from_user.id, text=data)
+        if callback.data == 'inf':
+            with open('dog.png', 'rb') as photo:
+                await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
+                await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+                await bot.send_message(chat_id=callback.from_user.id, text=data)
+        if callback.data == 'inf_hr':
+            with open('little_dog.png', 'rb') as photo:
+                await bot.send_photo(chat_id=callback.from_user.id, photo=photo)
+            with open('dog.png', 'rb') as photo:
+                await bot.send_document(callback.from_user.id, photo)
+                await bot.send_message(chat_id=callback.from_user.id, text=prompt)
+                await bot.send_message(chat_id=callback.from_user.id, text=data)
 
 # бесконечный рандомный цикл HR с промптами из Лексики. TODO объединить с inf
 @dp.callback_query_handler(text='inf_lexica')
