@@ -139,6 +139,52 @@ def getJson():
     json_str = "\n".join(json_list)
     return json_str
 
+# image_paths = c:/123.png
+def send_small_image2(image_paths: str) -> None:
+    print('send_small_image')
+    media = types.MediaGroup()
+    for file in image_paths:
+        print(146)
+        with Image.open(file) as img:
+            print(148)
+            width, height = img.size
+            ratio = min(256 / width, 256 / height)
+            new_size = (round(width * ratio), round(height * ratio))
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+                print(153)
+                # Изменяем размер изображения и сохраняем его во временный файл
+                small_img = img.resize(new_size, resample=Image.LANCZOS)
+                #small_img.save(temp_file.name)
+                print(157)
+                media.attach_photo(small_img, 'ttt')
+                print(159)
+                # Отправляем изображение в бота
+                with open(temp_file.name, 'rb') as small_img_file:
+                    print(162)
+                    print(small_img_file)
+                    #media.attach_photo(types.InputFile(small_img_file), 'ttt')
+                # Удаляем временный файл
+                print('удалили')
+                #os.remove(temp_file.name)
+    #grouped_files = [InputMediaDocument(media=InputFile(file), caption=file) for file in image_paths]
+    return media
+def send_small_image(image_paths: str) -> None:
+    media = types.MediaGroup()
+    for file in image_paths:
+        with Image.open(file) as img:
+            width, height = img.size
+            ratio = min(256 / width, 256 / height)
+            new_size = (round(width * ratio), round(height * ratio))
+            small_img = img.resize(new_size, resample=Image.LANCZOS)
+            buffer = io.BytesIO()
+            small_img.save(buffer, format='PNG')
+            print(181)
+            print(buffer)
+            print(buffer.getvalue())
+            #print(small_img)
+            media.attach_photo(small_img, 'ttt')
+    return media
+
 # Поиск картинки в папках и возврат полного пути если нашёл
 # TODO брать из get_next_sequence_number
 # TODO возвращать список seed`ов если одинаковый постфикс
@@ -536,6 +582,25 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         docWay = await sendImagesFromSeed(doc, callback.message, 0)
         filesToSend.append(docWay)
     grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in filesToSend]
+    #await bot.send_media_group(chat_id=callback.message.chat.id, media=send_small_image(filesToSend))
+
+    grouped_files_small = []
+    media2 = types.MediaGroup()
+
+    # изменяем размер каждого изображения и добавляем в список grouped_files_small
+    for file in filesToSend:
+        with Image.open(file) as img:
+            img = img.resize((256, 256))
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='PNG')
+            img_byte_arr.seek(0)
+            media2.attach_photo(img_byte_arr, 'ttt2')
+            #grouped_files_small.append(
+                #InputMediaDocument(media=InputFile(img_byte_arr, filename='small.png'), caption=''))
+
+    # отправляем список grouped_files_small с помощью bot.send_media_group
+    await bot.send_media_group(chat_id=callback.message.chat.id, media=media2)
+
     await bot.send_media_group(chat_id=callback.message.chat.id, media=grouped_files)
     await bot.send_message(
         chat_id=callback.message.chat.id,
