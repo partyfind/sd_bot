@@ -111,13 +111,13 @@ data = {"prompt":"cute dog",
         'save_images': 'true'
 }
 
-data_params = {'img_thumb': 'true',
+dataParams = {'img_thumb': 'true',
                'img_tg': 'true',
                'img_real': 'true'
 }
 
 dataOld = data.copy()
-dataOldParams = data_params.copy()
+dataOldParams = dataParams.copy()
 dataOrig = data.copy()
 
 # -------- CLASSES ----------
@@ -127,7 +127,7 @@ dataOrig = data.copy()
 state_classes = {}
 for key in data:
     state_classes[key] = State()
-for key in data_params:
+for key in dataParams:
     state_classes[key] = State()
 
 # Inherit from the dynamically created class
@@ -169,9 +169,12 @@ def pilToImages(res, typeImages = 'tg'):
         i = i + 1
     return media_group
 
-def getJson():
-    data.update(data_params) # объединяем json`ы
-    json_list = [f"/{key} = {value}" for key, value in data.items()]
+def getJson(params = 0):
+    if params == 0:
+        d = data
+    else:
+        d = dataParams
+    json_list = [f"/{key} = {value}" for key, value in d.items()]
     json_str = "\n".join(json_list)
     return json_str
 
@@ -184,9 +187,7 @@ async def sendImagesFromSeed(seed, message, sendMedia = 1):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     args = message.get_args()
     img_way = img_dir + formatted_date
-    print(type(seed))
     files = [f for f in os.listdir(img_way) if seed in f]
-    print(img_way)
     way = ''
     if len(files) > 0:
         last_file = sorted(files)[-1]
@@ -244,7 +245,6 @@ def ping(status: str):
                 r = requests.get(url, timeout=3)
                 r.raise_for_status()
                 n = r.status_code
-                print(r.status_code)
             except requests.exceptions.HTTPError as errh:
                 print("Http Error:", errh)
             except requests.exceptions.ConnectionError as errc:
@@ -492,11 +492,13 @@ async def inl_scripts(message: Union[types.Message, types.CallbackQuery]) -> Non
 async def inl_change_param(callback: types.CallbackQuery) -> None:
     print("inl_change_param")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
-    data.update(data_params)
+    #data.update(dataParams)
     json_list = [f"/{key} = {value}" for key, value in data.items()]
+    json_list_params = [f"/{key} = {value}" for key, value in dataParams.items()]
     json_str = "\n".join(json_list)
+    json_str_params = "\n".join(json_list_params)
     await callback.message.edit_text(
-        f"JSON параметры:\n{json_str}", reply_markup=keyboard
+        f"JSON параметры:\n{json_str}\n{json_str_params}", reply_markup=keyboard
     )
 
 # Вызов reset_param, сброс JSON
@@ -505,10 +507,11 @@ async def inl_change_param(callback: types.CallbackQuery) -> None:
 async def inl_reset_param(message: Union[types.Message, types.CallbackQuery]) -> None:
     print("inl_reset_param")
     global data
-    #data.update(dataOldParams) # TODO
+    global dataParams
     data = dataOld
+    dataParams = dataOldParams
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
-    txt = f"JSON сброшен\n{getJson()}"
+    txt = f"JSON сброшен\n{getJson()}\n{getJson(1)}"
     # Если команда /reset_param
     if hasattr(message, "content_type"):
         await bot.send_message(
@@ -562,11 +565,11 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         dataOrig['hr_resize_x'] = dataOrig['width']*2
         dataOrig['hr_resize_y'] = dataOrig['height']*2
     res = api.txt2img(**dataOrig) # TODO заменить dataOrig на data, исправить костыль
-    if data_params['img_thumb'] == 'true' or data_params['img_thumb'] == 'True':
+    if dataParams['img_thumb'] == 'true' or dataParams['img_thumb'] == 'True':
         await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'thumbs'))
-    if data_params['img_tg'] == 'true' or data_params['img_tg'] == 'True':
+    if dataParams['img_tg'] == 'true' or dataParams['img_tg'] == 'True':
         await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'tg'))
-    if data_params['img_real'] == 'true' or data_params['img_real'] == 'True':
+    if dataParams['img_real'] == 'true' or dataParams['img_real'] == 'True':
         await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'real'))
     await bot.send_message(
         chat_id=callback.message.chat.id,
@@ -598,7 +601,7 @@ async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None
                     local + "/sdapi/v1/progress?skip_current_image=false"
                 ) as response_progress:
                     response_json2 = await response_progress.json()
-                    print(response_json2)
+                    #print(response_json2)
                     e = round(response_json2["eta_relative"], 1)
                     time.sleep(2)
                     await bot.edit_message_text(
@@ -620,7 +623,7 @@ async def inl_skip(message: Union[types.Message, types.CallbackQuery]) -> None:
         async with session.post(local + "/sdapi/v1/skip") as response:
             # Получаем ответ и выводим его
             response_json = await response.json()
-            print(response_json)
+            #print(response_json)
             if hasattr(message, "content_type"):
                 await message.answer("skip")
             else:
@@ -666,36 +669,26 @@ async def getLora(message: Union[types.Message, types.CallbackQuery]) -> None:
 @dp.message_handler(lambda message: True)
 async def change_json(message: types.Message):
     print('change_json')
-    print(message.get_args())
-    print(type(message.get_args()))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     text = message.text
     nam = text.split()[0][1:] # txt из /txt 321
     state_names = [attr for attr in dir(Form) if isinstance(getattr(Form, attr), State)]
-    print(state_names)
     args = message.get_args() # это 321, когда ввели /txt 321
     # Поиск команд из data
     if nam in state_names:
-        print(630)
-        print(args)
         if args == '':
-            print(632)
             await message.answer("Напиши любое " + nam)
             if nam in state_names:
                 await getattr(Form, nam).set()
             else:
                 print("Ошибка какая-то")
         else:
-            print(640)
             # /txt 321 пишем 321 в data['txt']
             data[nam] = args
             # TODO answer поменять на edit_text
-            await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
+            await message.answer(f"JSON параметры:\n{getJson()}\n{getJson(1)}", reply_markup=keyboard)
     else:
-        print(645)
         if args != None:
-            print(648)
-            print(args)
             # /seed2img + только буквы
             if nam == 'seed2img' and args.isalpha():
                 await message.answer('Введи seed')
@@ -706,15 +699,13 @@ async def change_json(message: types.Message):
             if nam == 'seed2img' and (args.isdigit() or ('-' in args and all(s.isdigit() for s in args.split('-')))):
                 await sendImagesFromSeed(args, message)
         if text != '' and args == None:
-            print(648)
-            print(args)
             # цифры или цифры с минусом
             if text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-'))):
                 print('')
             # только буквы TODO optimize
             if (not text.isdigit() or (not '-' in text and not text.isdigit())) and not (text.isdigit() or ('-' in text and all(s.isdigit() for s in text.split('-')))):
                 data['prompt'] = message.text
-                await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}", reply_markup=keyboard)
+                await message.answer(f"Записали промпт. JSON параметры:\n{getJson()}\n{getJson(1)}", reply_markup=keyboard)
 
 # Ввели ответ на change_json
 @dp.message_handler(state=Form)
@@ -722,16 +713,16 @@ async def answer_handler(message: types.Message, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     current_state = await state.get_state()  # Form:команда
     txt = message.text
-    for key, val in data_params.items():
+    for key, val in dataParams.items():
         if current_state == "Form:" + key:
-            data_params[key] = txt
+            dataParams[key] = txt
             break
     for key, val in data.items():
         if current_state == "Form:" + key:
             data[key] = txt
             break
     await state.reset_state()
-    await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
+    await message.answer(f"JSON параметры:\n{getJson()}\n{getJson(1)}", reply_markup=keyboard)
 
 
 # -------- BOT POLLING ----------
