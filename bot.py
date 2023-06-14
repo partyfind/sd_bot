@@ -117,6 +117,7 @@ data_params = {'img_thumb': 'true',
 }
 
 dataOld = data.copy()
+dataOldParams = data_params.copy()
 dataOrig = data.copy()
 
 # -------- CLASSES ----------
@@ -134,12 +135,13 @@ Form = type("Form", (StatesGroup,), state_classes)
 
 # -------- FUNCTIONS ----------
 
-def pilToImages(res, typePhoto = 'real'):
+def pilToImages(res, typeImages = 'tg'):
     media_group = []
-    print(res)
-    print(len(res.images))
     imagesAll = res.images
-    i = -1
+    if len(res.images) == 1:
+        i = 0
+    if len(res.images) > 1:
+        i = -1
     for image in imagesAll:
         if i == -1:
             i = i + 1
@@ -148,21 +150,12 @@ def pilToImages(res, typePhoto = 'real'):
         image_buffer = io.BytesIO()
         image.save(image_buffer, format='PNG')
         image_buffer.seek(0)
-        if typePhoto == 'tg':
-            media_group.append(types.InputMediaPhoto(media=image_buffer))
-            #media_group.append([types.InputFile(image_buffer), 'media_tg'])
-        if typePhoto == 'real':
-            #media_group.append(InputMediaDocument(media=InputFile(image_buffer), caption="real"))
-            #media_group.append(types.InputMediaPhoto(media=InputFile(image_buffer)))
-            #media_real = [InputMediaDocument(media=InputFile(file), caption="") for file in filesToSend]
-            #media_group.append(InputMediaDocument(media=InputFile(image_buffer), caption=".png"))
-            #media_group.append(InputMediaDocument(media=image_buffer.getvalue()))
-            #image_data = base64.b64encode(image_buffer.getvalue()).decode('utf-8')
-            #media_group.append(types.InputMediaPhoto(media='data:image/png;base64,' + image_data))
-            #media_group.append(types.InputMediaDocument(media=InputFile(image_buffer)))
-            print(157)
-            media_group.append(types.InputMediaDocument(media=InputFile(image_buffer, filename=seed+'.png'), caption=seed+'.png'))
-        if typePhoto == 'thumbs':
+        if typeImages == 'tg':
+            media_group.append(types.InputMediaPhoto(media=image_buffer, caption=seed))
+        if typeImages == 'real':
+            media_group.append(types.InputMediaDocument(media=InputFile(image_buffer, filename=seed+'.png'), caption=seed))
+        if typeImages == 'thumbs':
+            img = Image.open(image_buffer)
             width, height = img.size
             # пропорции
             ratio = min(256 / width, 256 / height)
@@ -171,7 +164,8 @@ def pilToImages(res, typePhoto = 'real'):
             img_byte_arr = io.BytesIO()
             img.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
-            media_group.attach_photo(img_byte_arr, 'thumbs')
+            #media_group.attach_photo(img_byte_arr, '111')
+            media_group.append(types.InputMediaPhoto(media=img_byte_arr, caption=seed))
         i = i + 1
     return media_group
 
@@ -498,6 +492,7 @@ async def inl_scripts(message: Union[types.Message, types.CallbackQuery]) -> Non
 async def inl_change_param(callback: types.CallbackQuery) -> None:
     print("inl_change_param")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
+    data.update(data_params)
     json_list = [f"/{key} = {value}" for key, value in data.items()]
     json_str = "\n".join(json_list)
     await callback.message.edit_text(
@@ -510,6 +505,7 @@ async def inl_change_param(callback: types.CallbackQuery) -> None:
 async def inl_reset_param(message: Union[types.Message, types.CallbackQuery]) -> None:
     print("inl_reset_param")
     global data
+    #data.update(dataOldParams) # TODO
     data = dataOld
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     txt = f"JSON сброшен\n{getJson()}"
@@ -566,8 +562,18 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
         dataOrig['hr_resize_x'] = dataOrig['width']*2
         dataOrig['hr_resize_y'] = dataOrig['height']*2
     res = api.txt2img(**dataOrig) # TODO заменить dataOrig на data, исправить костыль
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res))
-    #await bot.send_document(callback.message.chat.id, media=pilToImages(res))
+    if data_params['img_thumb'] == 'true' or data_params['img_thumb'] == 'True':
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'thumbs'))
+    if data_params['img_tg'] == 'true' or data_params['img_tg'] == 'True':
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'tg'))
+    if data_params['img_real'] == 'true' or data_params['img_real'] == 'True':
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res, 'real'))
+    await bot.send_message(
+        chat_id=callback.message.chat.id,
+        text=data['prompt'] + '\n' + str(res.info['all_seeds']),
+        reply_markup=keyboard,
+        parse_mode='Markdown'
+    )
 
 # Обработчик команды /status
 # TODO async
