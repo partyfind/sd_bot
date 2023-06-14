@@ -143,6 +143,7 @@ def pilToImages(res, typeImages = 'tg'):
     if len(res.images) > 1:
         i = -1
     for image in imagesAll:
+        # костыль для отсечения первой картинки с гридами
         if i == -1:
             i = i + 1
             continue
@@ -150,10 +151,13 @@ def pilToImages(res, typeImages = 'tg'):
         image_buffer = io.BytesIO()
         image.save(image_buffer, format='PNG')
         image_buffer.seek(0)
+        # картинка в телеге
         if typeImages == 'tg':
             media_group.append(types.InputMediaPhoto(media=image_buffer, caption=seed))
+        # оригинал
         if typeImages == 'real':
             media_group.append(types.InputMediaDocument(media=InputFile(image_buffer, filename=seed+'.png'), caption=seed))
+        # превью
         if typeImages == 'thumbs':
             img = Image.open(image_buffer)
             width, height = img.size
@@ -177,6 +181,14 @@ def getJson(params = 0):
     json_list = [f"/{key} = {value}" for key, value in d.items()]
     json_str = "\n".join(json_list)
     return json_str
+
+def get_random_prompt():
+    text = 'cat in hat'
+    input_ids = tokenizer(text, return_tensors='pt').input_ids
+    txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
+                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
+    prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
+    return prompt
 
 # Поиск картинки в папках и возврат полного пути если нашёл
 # TODO брать из get_next_sequence_number
@@ -416,6 +428,11 @@ async def cmd_stop(message: types.Message) -> None:
     await bot.send_message(
         chat_id=message.from_user.id, text="SD остановлена", reply_markup=getOpt()
     )
+
+# генератор промптов https://huggingface.co/FredZhang7/distilgpt2-stable-diffusion-v2
+@dp.callback_query_handler(text='random_prompt')
+async def random_prompt(callback: types.CallbackQuery) -> None:
+    await bot.send_message(chat_id=callback.from_user.id, text=get_random_prompt())
 
 async def send_time(background_task: asyncio.Task):
     while True:
