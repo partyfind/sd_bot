@@ -134,9 +134,17 @@ Form = type("Form", (StatesGroup,), state_classes)
 
 # -------- FUNCTIONS ----------
 
-def pilToImages(pilImages, typePhoto = 'real'):
+def pilToImages(res, typePhoto = 'real'):
     media_group = []
-    for image in pilImages:
+    print(res)
+    print(len(res.images))
+    imagesAll = res.images
+    i = -1
+    for image in imagesAll:
+        if i == -1:
+            i = i + 1
+            continue
+        seed = str(res.info['all_seeds'][i])
         image_buffer = io.BytesIO()
         image.save(image_buffer, format='PNG')
         image_buffer.seek(0)
@@ -152,8 +160,8 @@ def pilToImages(pilImages, typePhoto = 'real'):
             #image_data = base64.b64encode(image_buffer.getvalue()).decode('utf-8')
             #media_group.append(types.InputMediaPhoto(media='data:image/png;base64,' + image_data))
             #media_group.append(types.InputMediaDocument(media=InputFile(image_buffer)))
-            input_file = InputFile(image_buffer, filename='image.png')
-            media_group.append(types.InputMediaDocument(media=input_file, caption='image.png'))
+            print(157)
+            media_group.append(types.InputMediaDocument(media=InputFile(image_buffer, filename=seed+'.png'), caption=seed+'.png'))
         if typePhoto == 'thumbs':
             width, height = img.size
             # пропорции
@@ -164,6 +172,7 @@ def pilToImages(pilImages, typePhoto = 'real'):
             img.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
             media_group.attach_photo(img_byte_arr, 'thumbs')
+        i = i + 1
     return media_group
 
 def getJson():
@@ -547,17 +556,18 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     print("inl_gen1")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getGen(0), getStart(0)])
     if callback.data == 'gen1':
-        data['batch_size'] = 1
+        dataOrig['batch_size'] = 1
     if callback.data == 'gen4' or callback.data == 'gen_hr4':
-        data['batch_size'] = 4
+        dataOrig['batch_size'] = 4
     if callback.data == 'gen10':
-        data['batch_size'] = 10
+        dataOrig['batch_size'] = 10
     if callback.data == 'gen_hr' or callback.data == 'gen_hr4':
-        data['enable_hr'] = 'true'
-        data['hr_resize_x'] = data['width']*2
-        data['hr_resize_y'] = data['height']*2
+        dataOrig['enable_hr'] = 'true'
+        dataOrig['hr_resize_x'] = dataOrig['width']*2
+        dataOrig['hr_resize_y'] = dataOrig['height']*2
     res = api.txt2img(**dataOrig) # TODO заменить dataOrig на data, исправить костыль
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res))
+    #await bot.send_document(callback.message.chat.id, media=pilToImages(res))
 
 # Обработчик команды /status
 # TODO async
