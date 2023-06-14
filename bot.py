@@ -103,11 +103,16 @@ data = {"prompt":"cute dog",
         "hr_upscaler": webuiapi.HiResUpscaler.ESRGAN_4x,# https://github.com/mix1009/sdwebuiapi/blob/main/webuiapi/webuiapi.py#L24
         "hr_scale": 2,
         "hr_second_pass_steps": 15,
-        "denoising_strength": "0.2",
+        "denoising_strength": "0.2", # TODO сделать обработку запятых
         'enable_hr': 'false',
         'firstphase_width': 0,
         'firstphase_height': 0,
         'save_images': 'true'
+}
+
+data_params = {'img_thumb': 'true',
+               'img_tg': 'true',
+               'img_real': 'true'
 }
 
 dataOld = data.copy()
@@ -138,52 +143,6 @@ def getJson():
     json_list = [f"/{key} = {value}" for key, value in data.items()]
     json_str = "\n".join(json_list)
     return json_str
-
-# image_paths = c:/123.png
-def send_small_image2(image_paths: str) -> None:
-    print('send_small_image')
-    media = types.MediaGroup()
-    for file in image_paths:
-        print(146)
-        with Image.open(file) as img:
-            print(148)
-            width, height = img.size
-            ratio = min(256 / width, 256 / height)
-            new_size = (round(width * ratio), round(height * ratio))
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-                print(153)
-                # Изменяем размер изображения и сохраняем его во временный файл
-                small_img = img.resize(new_size, resample=Image.LANCZOS)
-                #small_img.save(temp_file.name)
-                print(157)
-                media.attach_photo(small_img, 'ttt')
-                print(159)
-                # Отправляем изображение в бота
-                with open(temp_file.name, 'rb') as small_img_file:
-                    print(162)
-                    print(small_img_file)
-                    #media.attach_photo(types.InputFile(small_img_file), 'ttt')
-                # Удаляем временный файл
-                print('удалили')
-                #os.remove(temp_file.name)
-    #grouped_files = [InputMediaDocument(media=InputFile(file), caption=file) for file in image_paths]
-    return media
-def send_small_image(image_paths: str) -> None:
-    media = types.MediaGroup()
-    for file in image_paths:
-        with Image.open(file) as img:
-            width, height = img.size
-            ratio = min(256 / width, 256 / height)
-            new_size = (round(width * ratio), round(height * ratio))
-            small_img = img.resize(new_size, resample=Image.LANCZOS)
-            buffer = io.BytesIO()
-            small_img.save(buffer, format='PNG')
-            print(181)
-            print(buffer)
-            print(buffer.getvalue())
-            #print(small_img)
-            media.attach_photo(small_img, 'ttt')
-    return media
 
 # Поиск картинки в папках и возврат полного пути если нашёл
 # TODO брать из get_next_sequence_number
@@ -362,15 +321,17 @@ def getTxt():
 
 
 # -------- COMMANDS ----------
-# start/help
+# start или help
+@dp.callback_query_handler(text="help")
 @dp.message_handler(commands=["help"])
 @dp.message_handler(commands=["start"])
-async def cmd_start(message: types.Message) -> None:
+async def cmd_start(message: Union[types.Message, types.CallbackQuery]) -> None:
     print("cmd_start")
-    await message.reply(
-        "Это бот для локального запуска SD" + getTxt(), reply_markup=getStart()
-    )
-
+    txt = "Это бот для локального запуска SD\n" + getTxt()
+    if hasattr(message, "content_type"):
+        await message.reply( txt, reply_markup=getStart())
+    else:
+        await message.message.edit_text(txt, reply_markup=getStart())
 
 # Получить опции
 @dp.message_handler(commands=["opt"])
@@ -384,13 +345,6 @@ async def cmd_opt(message: Union[types.Message, types.CallbackQuery]) -> None:
         print("inl_opt")
         await message.message.edit_text("Опции", reply_markup=keyboard)
 
-# Получить опции inline
-@dp.callback_query_handler(text="help")
-async def inl_help(callback: types.CallbackQuery) -> None:
-    print("inl_help")
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[getOpt(0), getStart(0)])
-    await callback.message.edit_text("Опции", reply_markup=keyboard)
-
 # Запуск/Остановка SD. Завязываемся на глобальную иконку sd
 @dp.callback_query_handler(text="sd")
 async def inl_sd(callback: types.CallbackQuery) -> None:
@@ -400,23 +354,23 @@ async def inl_sd(callback: types.CallbackQuery) -> None:
         stop_sd()
         sd = "⌛"
         await callback.message.edit_text(
-            "Останавливаем SD" + getTxt(), reply_markup=getStart()
+            "Останавливаем SD\n" + getTxt(), reply_markup=getStart()
         )
         ping("stop")
         sd = "❌"
         await callback.message.edit_text(
-            "SD остановлена" + getTxt(), reply_markup=getStart()
+            "SD остановлена\n" + getTxt(), reply_markup=getStart()
         )
     else:
         start_sd()
         sd = "⌛"
         await callback.message.edit_text(
-            "Запускаем SD" + getTxt(), reply_markup=getStart()
+            "Запускаем SD\n" + getTxt(), reply_markup=getStart()
         )
         ping("start")
         sd = "✅"
         await callback.message.edit_text(
-            "SD запущена" + getTxt(), reply_markup=getStart()
+            "SD запущена\n" + getTxt(), reply_markup=getStart()
         )
 
 # Остановка SD по /stop
@@ -569,53 +523,60 @@ async def inl_gen1(callback: types.CallbackQuery) -> None:
     if callback.data == 'gen4' or callback.data == 'gen_hr4':
         data['batch_size'] = 4
     if callback.data == 'gen10':
-        # пи%дец какая заглушка из-за ошибки Media group must include 2-10 items as written in docs, but also it works with 1 element
-        # надо убирать где-то отображения грида
-        data['batch_size'] = 9
+        data['batch_size'] = 10
     if callback.data == 'gen_hr' or callback.data == 'gen_hr4':
         data['enable_hr'] = 'true'
         data['hr_resize_x'] = data['width']*2
         data['hr_resize_y'] = data['height']*2
     res = api.txt2img(**data)
-    filesToSend = []
-    for doc in res.info['all_seeds']:
-        docWay = await sendImagesFromSeed(doc, callback.message, 0)
-        filesToSend.append(docWay)
-    grouped_files = [InputMediaDocument(media=InputFile(file), caption="") for file in filesToSend]
-    #await bot.send_media_group(chat_id=callback.message.chat.id, media=send_small_image(filesToSend))
-
-    grouped_files_small = []
-    media2 = types.MediaGroup()
-
-    # изменяем размер каждого изображения и добавляем в список grouped_files_small
-    for file in filesToSend:
-        with Image.open(file) as img:
-            img = img.resize((256, 256))
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='PNG')
-            img_byte_arr.seek(0)
-            media2.attach_photo(img_byte_arr, 'ttt2')
-            #grouped_files_small.append(
-                #InputMediaDocument(media=InputFile(img_byte_arr, filename='small.png'), caption=''))
-
-    # отправляем список grouped_files_small с помощью bot.send_media_group
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=media2)
-
-    await bot.send_media_group(chat_id=callback.message.chat.id, media=grouped_files)
-    await bot.send_message(
-        chat_id=callback.message.chat.id,
-        text=data['prompt']+'\n'+str(res.info['all_seeds']),
-        reply_markup=keyboard,
-        parse_mode='Markdown'
-    )
-    # Чтоб не сохранялся навсегда апскейл
-    data['enable_hr'] = 'false'
+    if data['save_images'] == 'false' or data['save_images'] == 'False':
+        for img in res.images:
+            print(img.size)
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=pilToImages(res.images))
+    else:
+        filesToSend = []
+        for doc in res.info['all_seeds']:
+            docWay = await sendImagesFromSeed(doc, callback.message, 0)
+            filesToSend.append(docWay)
+        media_real = [InputMediaDocument(media=InputFile(file), caption="") for file in filesToSend]
+        media_thumbs = types.MediaGroup()
+        media_tg = types.MediaGroup()
+        # Превью
+        for file in filesToSend:
+            with Image.open(file) as img:
+                width, height = img.size
+                # пропорции
+                ratio = min(256 / width, 256 / height)
+                new_size = (round(width * ratio), round(height * ratio))
+                img = img.resize(new_size)
+                img_byte_arr = io.BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                media_thumbs.attach_photo(img_byte_arr, file)
+                media_tg.attach_photo(types.InputFile(file), file)
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=media_thumbs)
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=media_tg)
+        await bot.send_media_group(chat_id=callback.message.chat.id, media=media_real)
+        await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=data['prompt']+'\n'+str(res.info['all_seeds']),
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
+        # удаление фоток с жёсткого диска
+        #if data['save_images'] == 'false' or data['save_images'] == 'False':# TODO reg ex "fF"
+        #    for filename in filesToSend:
+        #        os.remove(filename)
+        #img_thumb
+        #img_tg
+        #img_real
 
 # Обработчик команды /status
 # TODO async
 @dp.message_handler(commands=["status"])
 @dp.callback_query_handler(text="status")
 async def inl_status(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print(inl_status)
     if hasattr(message, "content_type"):
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -716,7 +677,6 @@ async def change_json(message: types.Message):
             print(632)
             await message.answer("Напиши любое " + nam)
             if nam in state_names:
-                # Ловим ответ и пишем в data
                 await getattr(Form, nam).set()
             else:
                 print("Ошибка какая-то")
@@ -756,9 +716,10 @@ async def change_json(message: types.Message):
 async def answer_handler(message: types.Message, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[getSet(0), getStart(0)])
     current_state = await state.get_state()  # Form:команда
+    txt = message.text
     for key, val in data.items():
         if current_state == "Form:" + key:
-            data[key] = message.text
+            data[key] = txt
             break
     await state.reset_state()
     await message.answer(f"JSON параметры:\n{getJson()}", reply_markup=keyboard)
