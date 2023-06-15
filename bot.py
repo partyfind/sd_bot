@@ -27,6 +27,7 @@ from datetime import datetime
 import aiohttp
 from typing import Union
 from PIL import Image
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
 
 API_TOKEN = "900510503:AAG5Xug_JEERhKlf7dpOpzxXcJIzlTbWX1M"
 
@@ -108,7 +109,8 @@ data = {"prompt":"cute dog",
         'enable_hr': 'false',
         'firstphase_width': 0,
         'firstphase_height': 0,
-        'save_images': 'true'
+        'save_images': 'true',
+        'use_async': 'True'
 }
 
 dataParams = {'img_thumb': 'true',
@@ -183,10 +185,13 @@ def getJson(params = 0):
     return json_str
 
 def get_random_prompt():
-    text = 'cat in hat'
+    text = data['prompt'] # from JSON
+    tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    model = GPT2LMHeadModel.from_pretrained('FredZhang7/distilgpt2-stable-diffusion-v2')
     input_ids = tokenizer(text, return_tensors='pt').input_ids
     txt = model.generate(input_ids, do_sample=True, temperature=0.8, top_k=8, max_length=120, num_return_sequences=1,
-                            repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
+                         repetition_penalty=1.2, penalty_alpha=0.6, no_repeat_ngram_size=0, early_stopping=True)
     prompt = tokenizer.decode(txt[0], skip_special_tokens=True)
     return prompt
 
@@ -340,6 +345,16 @@ def getSet(returnAll=1) -> InlineKeyboardMarkup:
         return keyAll
     else:
         return keys
+# Меню настроек
+def getPrompt(returnAll=1) -> InlineKeyboardMarkup:
+    keys = [
+        InlineKeyboardButton("random_prompt", callback_data="random_prompt")
+    ]
+    keyAll = InlineKeyboardMarkup(inline_keyboard=[keys])
+    if returnAll == 1:
+        return keyAll
+    else:
+        return keys
 
 
 # Меню генераций
@@ -375,6 +390,12 @@ async def cmd_start(message: Union[types.Message, types.CallbackQuery]) -> None:
         await message.reply( txt, reply_markup=getStart())
     else:
         await message.message.edit_text(txt, reply_markup=getStart())
+
+# webuiapi.HiResUpscaler
+@dp.message_handler(commands=["test"])
+async def cmd_test(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("cmd_test")
+    print(webuiapi)
 
 # Получить опции
 @dp.message_handler(commands=["opt"])
@@ -433,6 +454,26 @@ async def cmd_stop(message: types.Message) -> None:
 @dp.callback_query_handler(text='random_prompt')
 async def random_prompt(callback: types.CallbackQuery) -> None:
     await bot.send_message(chat_id=callback.from_user.id, text=get_random_prompt())
+
+
+# Вызов settings
+@dp.message_handler(commands=["prompt"])
+@dp.callback_query_handler(text="prompt")
+async def inl_prompt(message: Union[types.Message, types.CallbackQuery]) -> None:
+    print("inl_prompt")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[getPrompt(0), getStart(0)])
+    txt = "Промпты"
+    if hasattr(message, "content_type"):
+        await bot.send_message(
+            chat_id=message.from_user.id, text=txt, reply_markup=keyboard
+        )
+    else:
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text=txt,
+            reply_markup=keyboard
+        )
 
 async def send_time(background_task: asyncio.Task):
     while True:
